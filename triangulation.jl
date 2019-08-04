@@ -5,6 +5,8 @@ const TRI_NEIGHBOR_A = 1
 const TRI_NEIGHBOR_B = 2
 const TRI_NEIGHBOR_C = 3
 
+const MAX_COORD = 5
+
 # TODO: use hierarchical structure for faster triangle lookup
 mutable struct DelaunayTriangle{T<:Point2} 
     # points in ccw order
@@ -12,7 +14,7 @@ mutable struct DelaunayTriangle{T<:Point2}
     # neighbor indices. 0 = no neighbor
     na::Int64; nb::Int64; nc::Int64
     active::Bool
-    child1::Int64; child2::Int64; child3::Int64
+    edge_a_marker::Int64; edge_b_marker::Int64; edge_c_marker::Int64
 end
 
 DelaunayTriangle(a, b, c, na, nb, nc, active) = DelaunayTriangle(a, b, c, na, nb, nc, active, 0, 0, 0)
@@ -36,10 +38,11 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     #   |  \ \|
     #   +---+ +
     #   a   b a
-    base_t1 = DelaunayTriangle(Point2(minc, minc), Point2(maxc, minc), Point2(minc, maxc), 2, 0, 0, true)
-    base_t2 = DelaunayTriangle(Point2(maxc, minc), Point2(maxc, maxc), Point2(minc, maxc), 0, 1, 0, true)
-    base_tri = DelaunayTriangle(Point2f0(0, 5), Point2f0(-5, -5), Point2f0(5, -5), 0, 0, 0, true)
-    faces = [base_tri] # [base_t1, base_t2]
+    base_tri = DelaunayTriangle(
+        Point2f0(0, MAX_COORD), Point2f0(-MAX_COORD, -MAX_COORD), Point2f0(MAX_COORD, -MAX_COORD),
+        0, 0, 0, true
+    )
+    faces = [base_tri]
 
     tess = DelaunayTess2D(faces, 1)
 
@@ -79,6 +82,9 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
         println("=== CHECK NBR POST")
         _check_nbr(tess)
     end
+
+    _deactivate_extremal_triangles(tess)
+
     return tess
 end
 
@@ -183,8 +189,6 @@ function _flip(tess::DelaunayTess2D{T}) where T <: Point2
         if incircumcircle(t, v)
             _flip_tri(tess, t, n, it, in, v)
         end
-
-        break
     end
 end
 
@@ -245,6 +249,15 @@ function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T},
 
     (t.nc > 0) && _update_neighbor(tess.faces[t.nc], in, it)
     (n.nc > 0) && _update_neighbor(tess.faces[n.nc], it, in)
+end
+
+function _deactivate_extremal_triangles(tess::DelaunayTess2D{T}) where T <: Point2
+    for t in tess.faces
+        extremal = abs(t.a[1]) == MAX_COORD || abs(t.a[2]) == MAX_COORD ||
+                    abs(t.b[1]) == MAX_COORD || abs(t.b[2]) == MAX_COORD ||
+                    abs(t.c[1]) == MAX_COORD || abs(t.c[2]) == MAX_COORD
+        t.active = t.active && !extremal
+    end
 end
 
 function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
@@ -349,14 +362,17 @@ function plottess(tess::DelaunayTess2D{T}) where T <: Point2
         y1[j*3+3] = t.a[2]
     end
     #draw(SVG(24cm, 18cm), plot(x=x0, y=y0, xend=x1, yend=y1, Geom.segment))
-    plot(x=x0, y=y0, xend=x1, yend=y1, Geom.segment)
+    plot(x=x0, y=y0, xend=x1, yend=y1, Geom.segment, Coord.cartesian(fixed=true))
 end
 
 # testing
 #base = [Point2f0(1, 1.5), Point2f0(2, 2), Point2f0(0.5, 1.25)]
-degs = LinRange(0, 2*π, 10)
-base = map(x -> Point2f0(cos(x), sin(x)), degs)[1:10]
-push!(base, Point2f0(0,0))
+degs = LinRange(0, 2*π, 100)
+base1 = map(x -> Point2f0(cos(x), sin(x)), degs)[1:10]
+base2 = map(x -> Point2f0(2*cos(x), 2*sin(x)), degs)[1:10]
+base3 = map(x -> Point2f0(rand(Float32)*2-1, rand(Float32)*2-1), degs)[1:15]
+base = base3 # vcat(base1, base2)
+#push!(base, Point2f0(0,0))
 println(base)
 tess = delaunay2D(base)
 plottess(tess)
