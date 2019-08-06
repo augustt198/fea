@@ -17,6 +17,11 @@ mutable struct DelaunayTriangle{T<:Point2}
     edge_a_marker::Int64; edge_b_marker::Int64; edge_c_marker::Int64
 end
 
+struct TriEdge
+    tri_idx::Int64
+    nbr::Int64
+end
+
 DelaunayTriangle(a, b, c, na, nb, nc, active) = DelaunayTriangle(a, b, c, na, nb, nc, active, 0, 0, 0)
 DelaunayTriangle(a, b, c, na, nb, nc) = DelaunayTriangle(a, b, c, na, nb, nc, false)
 DelaunayTriangle(a, b, c) = DelaunayTriangle(a, b, c, 0, 0, 0)
@@ -30,14 +35,8 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     minc, maxc = _coordinate_bounds(V)
     minc -= 1
     maxc += 1
-    # base triangulation
-    #     c   b
-    # c + +---+
-    #   |\ \  |
-    #   | \ \ |
-    #   |  \ \|
-    #   +---+ +
-    #   a   b a
+
+    # base triangle large enough to enclose all points in V
     base_tri = DelaunayTriangle(
         Point2f0(0, MAX_COORD), Point2f0(-MAX_COORD, -MAX_COORD), Point2f0(MAX_COORD, -MAX_COORD),
         0, 0, 0, true
@@ -49,38 +48,70 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     for v_idx in 1:length(V)
         vert = V[v_idx]
         
-        i = _find_tri_idx(tess, vert)
-        t = tess.faces[i]
-        #        a
-        #       /|\
-        #      / | \
-        #     /  |  \
-        #    / 1 x 2 \
-        #   /  /   \  \
-        #  / /   3   \ \
-        # //           \\
-        # +-------------+
-        # b             c
-        base_idx = length(tess.faces) + 1
-        t₁ = DelaunayTriangle(t.a, t.b, vert, base_idx+2, base_idx+1, t.nc, true) # tri @ base_idx+0
-        t₂ = DelaunayTriangle(t.c, t.a, vert, base_idx+0, base_idx+2, t.nb, true) # tri @ base_idx+1
-        t₃ = DelaunayTriangle(t.b, t.c, vert, base_idx+1, base_idx+0, t.na, true) # tri @ base_idx+2
-        push!(tess.faces, t₁)
-        push!(tess.faces, t₂)
-        push!(tess.faces, t₃)
-        t.active = false
-        
-        (t.nc > 0) && _update_neighbor(tess.faces[t.nc], i, base_idx + 0)
-        (t.nb > 0) && _update_neighbor(tess.faces[t.nb], i, base_idx + 1)
-        (t.na > 0) && _update_neighbor(tess.faces[t.na], i, base_idx + 2)
+        i1, i2, ret1, ret2 = _find_tri_idx(tess, vert)
 
-        println("=== CHECK NBR PRE")
-        _check_nbr(tess)
+        if ret1 == 0 # interior
+            i = i1
+            t = tess.faces[i]
+            # division diagram of t -> t1, t2, t3:
+            #        a
+            #       /|\
+            #      / | \
+            #     /  |  \
+            #    / 1 x 2 \
+            #   /  /   \  \
+            #  / /   3   \ \
+            # //           \\
+            # +-------------+
+            # b             c
+            base_idx = length(tess.faces) + 1
+            t₁ = DelaunayTriangle(t.a, t.b, vert, base_idx+2, base_idx+1, t.nc, true) # tri @ base_idx+0
+            t₂ = DelaunayTriangle(t.c, t.a, vert, base_idx+0, base_idx+2, t.nb, true) # tri @ base_idx+1
+            t₃ = DelaunayTriangle(t.b, t.c, vert, base_idx+1, base_idx+0, t.na, true) # tri @ base_idx+2
+            push!(tess.faces, t₁)
+            push!(tess.faces, t₂)
+            push!(tess.faces, t₃)
+            t.active = false
+            
+            (t.nc > 0) && _update_neighbor(tess.faces[t.nc], i, base_idx + 0)
+            (t.nb > 0) && _update_neighbor(tess.faces[t.nb], i, base_idx + 1)
+            (t.na > 0) && _update_neighbor(tess.faces[t.na], i, base_idx + 2)
 
-        _flip(tess)
-
-        println("=== CHECK NBR POST")
-        _check_nbr(tess)
+            _flip(tess)
+            _check_nbr(tess)
+        elseif ret1 > 0 # on edge
+            #        + s
+            #       /|\
+            #      / | \
+            #     /  |  \
+            #    / 1 | 2 \
+            #   +----+----+
+            #  q    vert   r
+            for (i, ret) in zip([i1, i2], [ret1, ret2])
+                base_idx = length(tess.faces) + 1
+                t = tess.faces[i]
+                if ret == TRI_NEIGHBOR_A
+                    s, q, r = t.a, t.b, t.c
+                    ns, nq, nr = t.na, t.nb, t.nc
+                elseif ret == TRI_NEIGHBOR_B
+                    s, q, r = t.b, t.c, t.a
+                    ns, nq, nr = t.nb, t.nc, t.na
+                else # ret == TRI_NEIGHBOR_C
+                    s, q, r = t.c, t.a, t.b
+                    ns, nq, nr = t.nc, t.na, t.nb
+                end
+                t₁ = DelaunayTriangle(s, q, vert, 0, base_idx+1, nr, true)
+                t₂ = DelaunayTriangle(s, vert, r, 0, nq, base_idx+0, true)
+                push!(tess.faces, t₁)
+                push!(tess.faces, t₂)
+                t.active = false
+            end
+            # adjust neighboring triangles
+            tess.faces[end - 3].na = length(tess.faces) - 0
+            tess.faces[end - 2].na = length(tess.faces) - 1
+            tess.faces[end - 1].na = length(tess.faces) - 2
+            tess.faces[end - 0].na = length(tess.faces) - 3
+        end
     end
 
     _deactivate_extremal_triangles(tess)
@@ -138,18 +169,20 @@ end
 
 # Lawson flip algorithm
 function _flip(tess::DelaunayTess2D{T}) where T <: Point2
-    # queue of edges. edge is represented by a pair a triangle and the neighbor that
-    # forms the common edge
-    queue::Vector{Tuple{DelaunayTriangle{T}, Int64, Int64}} = []
+    seen::Set{TriEdge} = Set()
+    queue::Vector{TriEdge} = []
+
     # init queue
     for offset in 0:2
         idx = length(tess.faces) - offset
         t = tess.faces[idx]
-        push!(queue, (t, idx, TRI_NEIGHBOR_C))
+        push!(queue, TriEdge(idx, TRI_NEIGHBOR_C))
     end 
 
     while length(queue) > 0
-        t, it, nbr = pop!(queue)
+        edge = pop!(queue)
+        it = edge.tri_idx; nbr = edge.nbr
+        t = tess.faces[it]
         if nbr == TRI_NEIGHBOR_A
             if t.na < 1
                 continue
@@ -187,7 +220,9 @@ function _flip(tess::DelaunayTess2D{T}) where T <: Point2
         end
 
         if incircumcircle(t, v)
-            _flip_tri(tess, t, n, it, in, v)
+            edge1, edge2 = _flip_tri(tess, t, n, it, in, v)
+            push!(queue, edge1)
+            push!(queue, edge2)
         end
     end
 end
@@ -195,9 +230,10 @@ end
 function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T},
     n::DelaunayTriangle{T}, it::Int64, in::Int64, v::T) where T <: Point2
     # flip diagram:
+    #               ---->
     #        +(X)               +
     #       /|\                / \
-    #      / | \     --> nY_b /   \  nY_a
+    #      / | \         nY_b /   \  nY_a
     #     /  |  \            / ta  \
     #  u + t | n + v        +-------+
     #     \  |  /            \ tb  /
@@ -249,6 +285,9 @@ function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T},
 
     (t.nc > 0) && _update_neighbor(tess.faces[t.nc], in, it)
     (n.nc > 0) && _update_neighbor(tess.faces[n.nc], it, in)
+
+    # new edges that are not incident to `u` need to be checked
+    return (TriEdge(t_idx, TRI_NEIGHBOR_C), TriEdge(n_idx, TRI_NEIGHBOR_A))
 end
 
 function _deactivate_extremal_triangles(tess::DelaunayTess2D{T}) where T <: Point2
@@ -261,17 +300,29 @@ function _deactivate_extremal_triangles(tess::DelaunayTess2D{T}) where T <: Poin
 end
 
 function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
-    for j in 1:length(tess.faces)
-        tri = tess.faces[j]
-        if !tri.active
-            continue
-        end
-        if intriangle(tri, pt)
-            return j
+    t1 = 0
+    ret1 = 0
+    for (i, tri) in enumerate(tess.faces)
+        if tri.active
+            ret = intriangle(tri, pt)
+            if ret == 0
+                return (i, 0, ret, 0)
+            elseif ret > 0
+                if t1 == 0
+                    t1 = i
+                    ret1 = ret
+                else
+                    return (t1, i, ret1, ret)
+                end
+            end
         end
     end
+
+    if t1 != 0
+        println("BAD NEWS BAD NEWS BAD NEWS BAD NEWS")
+    end
     
-    return 0
+    return (0, 0)
 end
 
 function _coordinate_bounds(V::AbstractVector{T}) where T <: Point2
@@ -287,6 +338,9 @@ function _coordinate_bounds(V::AbstractVector{T}) where T <: Point2
     return (mincoord, maxcoord)
 end
 
+# returns -1 if T not in tri
+# returns 0 if T within tri
+# returns TRI_NEIGHBOR_A/B/C if T is on edge A/B/C
 function intriangle(tri::DelaunayTriangle{T}, P::T) where T <: Point2
     a = tri.c-tri.b; b = tri.a-tri.c; c = tri.b-tri.a
     ap = P-tri.a; bp = P-tri.b; cp = P-tri.c
@@ -294,7 +348,26 @@ function intriangle(tri::DelaunayTriangle{T}, P::T) where T <: Point2
     c_ap = c[1]*ap[2] - c[2]*ap[1];
     b_cp = b[1]*cp[2] - b[2]*cp[1];
     t0 = 0.0
-    return ((a_bp >= t0) && (b_cp >= t0) && (c_ap >= t0))
+    if a_bp >= t0
+        if a_bp == t0
+            return TRI_NEIGHBOR_A
+        end
+        if b_cp >= t0
+            if b_cp == t0
+                return TRI_NEIGHBOR_B
+            end
+            if c_ap >= t0
+                if c_ap == t0
+                    return TRI_NEIGHBOR_C
+                end
+                return 0
+            end
+            return -1
+        end
+        return -1
+    else
+        return -1
+    end
 end
 
 # assuming A, B, C are ccw
@@ -371,6 +444,7 @@ degs = LinRange(0, 2*π, 100)
 base1 = map(x -> Point2f0(cos(x), sin(x)), degs)[1:10]
 base2 = map(x -> Point2f0(2*cos(x), 2*sin(x)), degs)[1:10]
 base3 = map(x -> Point2f0(rand(Float32)*2-1, rand(Float32)*2-1), degs)[1:15]
+base3 = [Point2f0(-0.5, 0.1), Point2f0(0.5, 0.1), Point2f0(0, 0.5), Point2f0(0.25, 0.1)]
 base = base3 # vcat(base1, base2)
 #push!(base, Point2f0(0,0))
 println(base)
