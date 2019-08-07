@@ -1,11 +1,11 @@
 using GeometryTypes
 using Gadfly
 
+const MAX_COORD = 5
+
 const TRI_NEIGHBOR_A = 1
 const TRI_NEIGHBOR_B = 2
 const TRI_NEIGHBOR_C = 3
-
-const MAX_COORD = 5
 
 # TODO: use hierarchical structure for faster triangle lookup
 mutable struct DelaunayTriangle{T<:Point2} 
@@ -17,14 +17,15 @@ mutable struct DelaunayTriangle{T<:Point2}
     edge_a_marker::Int64; edge_b_marker::Int64; edge_c_marker::Int64
 end
 
-struct TriEdge
-    tri_idx::Int64
-    nbr::Int64
-end
-
 DelaunayTriangle(a, b, c, na, nb, nc, active) = DelaunayTriangle(a, b, c, na, nb, nc, active, 0, 0, 0)
 DelaunayTriangle(a, b, c, na, nb, nc) = DelaunayTriangle(a, b, c, na, nb, nc, false)
 DelaunayTriangle(a, b, c) = DelaunayTriangle(a, b, c, 0, 0, 0)
+
+struct TriEdge
+    tri_idx::Int64
+    # one of TRI_NEIGHBOR_A/B/C
+    nbr::Int64
+end
 
 mutable struct DelaunayTess2D{T<:Point2}
     faces::AbstractVector{DelaunayTriangle{T}}
@@ -102,6 +103,8 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
                 end
                 t₁ = DelaunayTriangle(s, q, vert, 0, base_idx+1, nr, true)
                 t₂ = DelaunayTriangle(s, vert, r, 0, nq, base_idx+0, true)
+                (nr > 0) && _update_neighbor(tess.faces[nr], i, base_idx+0)
+                (nq > 0) && _update_neighbor(tess.faces[nq], i, base_idx+1)
                 push!(tess.faces, t₁)
                 push!(tess.faces, t₂)
                 t.active = false
@@ -112,9 +115,13 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
             tess.faces[end - 1].na = length(tess.faces) - 2
             tess.faces[end - 0].na = length(tess.faces) - 3
         end
+
+        _check_nbr(tess)
     end
 
+
     _deactivate_extremal_triangles(tess)
+    _check_nbr(tess)
 
     return tess
 end
@@ -318,10 +325,8 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
         end
     end
 
-    if t1 != 0
-        println("BAD NEWS BAD NEWS BAD NEWS BAD NEWS")
-    end
-    
+    # means a triangle should be split but we only found one triangle
+    @assert t1 == 0
     return (0, 0)
 end
 
@@ -440,12 +445,12 @@ end
 
 # testing
 #base = [Point2f0(1, 1.5), Point2f0(2, 2), Point2f0(0.5, 1.25)]
-degs = LinRange(0, 2*π, 100)
-base1 = map(x -> Point2f0(cos(x), sin(x)), degs)[1:10]
-base2 = map(x -> Point2f0(2*cos(x), 2*sin(x)), degs)[1:10]
-base3 = map(x -> Point2f0(rand(Float32)*2-1, rand(Float32)*2-1), degs)[1:15]
-base3 = [Point2f0(-0.5, 0.1), Point2f0(0.5, 0.1), Point2f0(0, 0.5), Point2f0(0.25, 0.1)]
-base = base3 # vcat(base1, base2)
+degs = LinRange(0, 2*π, 20)
+base1 = map(x -> Point2f0(cos(x), sin(x)), degs)[1:15]
+base2 = map(x -> Point2f0(2*cos(x), 2*sin(x)), degs)[1:15]
+#base3 = map(x -> Point2f0(rand(Float32)*2-1, rand(Float32)*2-1), degs)[1:15]
+#base3 = [Point2f0(-0.5, -0.5), Point2f0(0.5, -0.5), Point2f0(0.5, 0.5), Point2f0(-0.5, 0.5), Point2f0(0.1, -0.25)]
+base = vcat(base1, base2)
 #push!(base, Point2f0(0,0))
 println(base)
 tess = delaunay2D(base)
