@@ -29,7 +29,6 @@ end
 
 mutable struct DelaunayTess2D{T<:Point2}
     faces::AbstractVector{DelaunayTriangle{T}}
-    _last_tri_idx::Int
 end
 
 function delaunay2D(V::AbstractVector{T}) where T <: Point2
