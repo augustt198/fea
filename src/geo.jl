@@ -10,6 +10,10 @@ abstract type AbstractCWTriangle{T} <: AbstractTriangle{T} end
 # vertices stored anticlockwise
 abstract type AbstractACWTriangle{T} <: AbstractTriangle{T} end
 
+struct ACWTriangle{T <: Point2} <: AbstractACWTriangle{T}
+    a::T; b::T; c::T
+end
+
 # returns -1 if T not in tri
 # returns 0 if T within tri
 # returns TRI_NEIGHBOR_A/B/C if T is on edge A/B/C
