@@ -82,3 +82,13 @@ function isquadconvex(a::T, b::T, c::T, d::T) where T <: Point2
         return true
     end
 end
+
+function barycentric(tri::AbstractTriangle{T}, P::T) where T <: Point2
+    A = [
+        tri.a[1] tri.b[1] tri.c[1]
+        tri.a[2] tri.b[2] tri.c[2]
+        1.0 1.0 1.0
+    ]
+    b = [P[1] ; P[2] ; 1.0]
+    return A \ b
+end

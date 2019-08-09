@@ -7,6 +7,7 @@ include("integrate.jl")
 export DelaunayTess2D,
         delaunay2D,
         integratetri,
-        ACWTriangle
+        ACWTriangle,
+        barycentric
 
 end
