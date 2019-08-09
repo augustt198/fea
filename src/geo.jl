@@ -83,6 +83,7 @@ function isquadconvex(a::T, b::T, c::T, d::T) where T <: Point2
     end
 end
 
+# transform point P to barymetric coords
 function barycentric(tri::AbstractTriangle{T}, P::T) where T <: Point2
     A = [
         tri.a[1] tri.b[1] tri.c[1]
