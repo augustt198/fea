@@ -5,7 +5,7 @@ using LinearAlgebra
 function integratetri(tri::AbstractACWTriangle{T}, f::Function) where T <: Point2
     u = tri.b - tri.a
     v = tri.c - tri.a
-    # transform from u, v basis to i, j
+    # transform from i, j basis to u, v
     M = hcat(u, v)
     J = det(M)
     f′ = (x) -> begin
