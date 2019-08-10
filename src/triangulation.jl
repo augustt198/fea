@@ -1,6 +1,6 @@
 using GeometryTypes
 
-const MAX_COORD = 5
+const MAX_COORD = 10
 
 # TODO: use hierarchical structure for faster triangle lookup
 mutable struct DelaunayTriangle{T<:Point2} <: AbstractACWTriangle{T}
@@ -77,7 +77,10 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
             (t.na > 0) && _update_neighbor(tess.faces[t.na], i, base_idx + 2)
 
             _flip(tess)
-            _check_nbr(tess)
+            
+            if !_check_nbr(tess)
+                break
+            end 
         elseif ret1 > 0 # on edge
             #        + s
             #       /|\
@@ -112,9 +115,11 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
             tess.faces[end - 2].na = length(tess.faces) - 1
             tess.faces[end - 1].na = length(tess.faces) - 2
             tess.faces[end - 0].na = length(tess.faces) - 3
-        end
 
-        _check_nbr(tess)
+            if !_check_nbr(tess)
+                break
+            end
+        end
     end
 
 
@@ -140,8 +145,10 @@ function _shares_common_edge(t::DelaunayTriangle{T}, n::DelaunayTriangle{T}) whe
 end
 
 function _check_nbr_single(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T}) where T<: Point2
+    good = true
     if t.na > 0
         if !_shares_common_edge(t, tess.faces[t.na])
+            good = false
             println("********************** BAD A")
             println("**********************-> T ", t)
             println("**********************-> N ", tess.faces[t.na])
@@ -149,6 +156,7 @@ function _check_nbr_single(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T}) wher
     end
     if t.nb > 0
         if !_shares_common_edge(t, tess.faces[t.nb])
+            good = false
             println("********************** BAD B")
             println("**********************-> T ", t)
             println("**********************-> N ", tess.faces[t.nb])
@@ -156,20 +164,24 @@ function _check_nbr_single(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T}) wher
     end
     if t.nc > 0
         if !_shares_common_edge(t, tess.faces[t.nc])
+            good = false
             println("********************** BAD C")
             println("**********************-> T ", t)
             println("**********************-> N ", tess.faces[t.nc])
         end
     end
+    return good
 end
 
 function _check_nbr(tess::DelaunayTess2D{T}) where T <: Point2
+    good = true
     for t in tess.faces
         if !t.active
             continue
         end
-        _check_nbr_single(tess, t)
+        good = good && _check_nbr_single(tess, t)
     end
+    return good
 end
 
 # Lawson flip algorithm
