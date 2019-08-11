@@ -24,23 +24,16 @@ function intriangle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
     c_ap = c[1]*ap[2] - c[2]*ap[1];
     b_cp = b[1]*cp[2] - b[2]*cp[1];
     t0 = 0.0
-    if a_bp >= t0
+    if a_bp >= t0 && b_cp >= t0 && c_ap >= t0
         if a_bp == t0
             return TRI_NEIGHBOR_A
+        elseif b_cp == t0
+            return TRI_NEIGHBOR_B
+        elseif c_ap == t0
+            return TRI_NEIGHBOR_C
+        else
+            return 0
         end
-        if b_cp >= t0
-            if b_cp == t0
-                return TRI_NEIGHBOR_B
-            end
-            if c_ap >= t0
-                if c_ap == t0
-                    return TRI_NEIGHBOR_C
-                end
-                return 0
-            end
-            return -1
-        end
-        return -1
     else
         return -1
     end
