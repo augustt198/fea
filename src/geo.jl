@@ -19,18 +19,18 @@ end
 # returns 0 if T within tri
 # returns TRI_NEIGHBOR_A/B/C if T is on edge A/B/C
 function intriangle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
-    a = tri.c-tri.b; b = tri.a-tri.c; c = tri.b-tri.a
-    ap = P-tri.a; bp = P-tri.b; cp = P-tri.c
+    a    = tri.c-tri.b; b = tri.a-tri.c; c = tri.b-tri.a
+    ap   = P-tri.a; bp = P-tri.b; cp = P-tri.c
     a_bp = a[1]*bp[2] - a[2]*bp[1];
     c_ap = c[1]*ap[2] - c[2]*ap[1];
     b_cp = b[1]*cp[2] - b[2]*cp[1];
-    t0 = zero(Float32)
-    epsilon = eps(Float32)
+
+    t0        = zero(Float32)
+    epsilon   = eps(Float32)
     a_bp_zero = isapprox(a_bp, t0, atol=epsilon)
     c_ap_zero = isapprox(c_ap, t0, atol=epsilon)
     b_cp_zero = isapprox(b_cp, t0, atol=epsilon)
-    println(a_bp, " ", b_cp, " ", c_ap)
-    println(a_bp_zero, " ", b_cp_zero, " ", c_ap_zero)
+
     if (a_bp >= t0 || a_bp_zero) && (b_cp >= t0 || b_cp_zero) && (c_ap >= t0 || c_ap_zero)
         if a_bp_zero
             return TRI_NEIGHBOR_A
