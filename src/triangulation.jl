@@ -9,10 +9,8 @@ mutable struct DelaunayTriangle{T<:Point2} <: AbstractACWTriangle{T}
     # neighbor indices. 0 = no neighbor
     na::Int64; nb::Int64; nc::Int64
     active::Bool
-    edge_a_marker::Int64; edge_b_marker::Int64; edge_c_marker::Int64
 end
 
-DelaunayTriangle(a, b, c, na, nb, nc, active) = DelaunayTriangle(a, b, c, na, nb, nc, active, 0, 0, 0)
 DelaunayTriangle(a, b, c, na, nb, nc) = DelaunayTriangle(a, b, c, na, nb, nc, false)
 DelaunayTriangle(a, b, c) = DelaunayTriangle(a, b, c, 0, 0, 0)
 
@@ -26,8 +24,13 @@ mutable struct DelaunayTess2D{T<:Point2}
     faces::AbstractVector{DelaunayTriangle{T}}
 end
 
-struct PSLG{T<:Point2}
-    segments::AbstractVector{LineSegment{T}}
+struct IndexedLineSegment
+    a::Int64
+    b::Int64
+end
+
+struct PSLG
+    segments::AbstractVector{IndexedLineSegment}
 end
 
 function delaunay2D(V::AbstractVector{T}) where T <: Point2
@@ -40,93 +43,102 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
         Point2f0(0, MAX_COORD), Point2f0(-MAX_COORD, -MAX_COORD), Point2f0(MAX_COORD, -MAX_COORD),
         0, 0, 0, true
     )
-    faces = [base_tri]
+    tess = DelaunayTess2D([base_tri])
 
-    tess = DelaunayTess2D(faces)
-
-    for v_idx in 1:length(V)
-        vert = V[v_idx]
-        
-        i1, i2, ret1, ret2 = _find_tri_idx(tess, vert)
-
-        if ret1 == 0 # interior
-            i = i1
-            t = tess.faces[i]
-            # division diagram of t -> t1, t2, t3:
-            #        a
-            #       /|\
-            #      / | \
-            #     /  |  \
-            #    / 1 x 2 \
-            #   /  /   \  \
-            #  / /   3   \ \
-            # //           \\
-            # +-------------+
-            # b             c
-            base_idx = length(tess.faces) + 1
-            t₁ = DelaunayTriangle(t.a, t.b, vert, base_idx+2, base_idx+1, t.nc, true) # tri @ base_idx+0
-            t₂ = DelaunayTriangle(t.c, t.a, vert, base_idx+0, base_idx+2, t.nb, true) # tri @ base_idx+1
-            t₃ = DelaunayTriangle(t.b, t.c, vert, base_idx+1, base_idx+0, t.na, true) # tri @ base_idx+2
-            push!(tess.faces, t₁)
-            push!(tess.faces, t₂)
-            push!(tess.faces, t₃)
-            t.active = false
-            
-            (t.nc > 0) && _update_neighbor(tess.faces[t.nc], i, base_idx + 0)
-            (t.nb > 0) && _update_neighbor(tess.faces[t.nb], i, base_idx + 1)
-            (t.na > 0) && _update_neighbor(tess.faces[t.na], i, base_idx + 2)
-
-            _flip(tess)
-            
-            if !_check_nbr(tess)
-                break
-            end 
-        elseif ret1 > 0 # on edge
-            #        + s
-            #       /|\
-            #      / | \
-            #     /  |  \
-            #    / 1 | 2 \
-            #   +----+----+
-            #  q    vert   r
-            for (i, ret) in zip([i1, i2], [ret1, ret2])
-                base_idx = length(tess.faces) + 1
-                t = tess.faces[i]
-                if ret == TRI_NEIGHBOR_A
-                    s, q, r = t.a, t.b, t.c
-                    ns, nq, nr = t.na, t.nb, t.nc
-                elseif ret == TRI_NEIGHBOR_B
-                    s, q, r = t.b, t.c, t.a
-                    ns, nq, nr = t.nb, t.nc, t.na
-                else # ret == TRI_NEIGHBOR_C
-                    s, q, r = t.c, t.a, t.b
-                    ns, nq, nr = t.nc, t.na, t.nb
-                end
-                t₁ = DelaunayTriangle(s, q, vert, 0, base_idx+1, nr, true)
-                t₂ = DelaunayTriangle(s, vert, r, 0, nq, base_idx+0, true)
-                (nr > 0) && _update_neighbor(tess.faces[nr], i, base_idx+0)
-                (nq > 0) && _update_neighbor(tess.faces[nq], i, base_idx+1)
-                push!(tess.faces, t₁)
-                push!(tess.faces, t₂)
-                t.active = false
-            end
-            # adjust neighboring triangles
-            tess.faces[end - 3].na = length(tess.faces) - 0
-            tess.faces[end - 2].na = length(tess.faces) - 1
-            tess.faces[end - 1].na = length(tess.faces) - 2
-            tess.faces[end - 0].na = length(tess.faces) - 3
-
-            if !_check_nbr(tess)
-                break
-            end
-        end
+    for (i, vert) in enumerate(V)
+        _insert_point(tess, vert)
     end
-
 
     _deactivate_extremal_triangles(tess)
     _check_nbr(tess)
 
     return tess
+end
+
+function _insert_point(tess::DelaunayTess2D{T}, vert::T) where T <: Point2
+    i1, i2, ret1, ret2 = _find_tri_idx(tess, vert)
+
+    if ret1 == 0 # interior
+        i = i1
+        t = tess.faces[i]
+        # division diagram of t -> t1, t2, t3:
+        #        a
+        #       /|\
+        #      / | \
+        #     /  |  \
+        #    / 1 x 2 \
+        #   /  /   \  \
+        #  / /   3   \ \
+        # //           \\
+        # +-------------+
+        # b             c
+        base_idx = length(tess.faces) + 1
+        t₁ = DelaunayTriangle(t.a, t.b, vert, base_idx+2, base_idx+1, t.nc, true) # tri @ base_idx+0
+        t₂ = DelaunayTriangle(t.c, t.a, vert, base_idx+0, base_idx+2, t.nb, true) # tri @ base_idx+1
+        t₃ = DelaunayTriangle(t.b, t.c, vert, base_idx+1, base_idx+0, t.na, true) # tri @ base_idx+2
+        push!(tess.faces, t₁)
+        push!(tess.faces, t₂)
+        push!(tess.faces, t₃)
+        t.active = false
+        
+        (t.nc > 0) && _update_neighbor(tess.faces[t.nc], i, base_idx + 0)
+        (t.nb > 0) && _update_neighbor(tess.faces[t.nb], i, base_idx + 1)
+        (t.na > 0) && _update_neighbor(tess.faces[t.na], i, base_idx + 2)
+
+        edges = [
+            TriEdge(base_idx+0, TRI_NEIGHBOR_C),
+            TriEdge(base_idx+1, TRI_NEIGHBOR_C),
+            TriEdge(base_idx+2, TRI_NEIGHBOR_C)
+        ]
+        _flip(tess, edges)
+        
+        if !_check_nbr(tess)
+            #break
+        end 
+    elseif ret1 > 0 # on edge
+        #        + s
+        #       /|\
+        #      / | \
+        #     /  |  \
+        #    / 1 | 2 \
+        #   +----+----+
+        #  q    vert   r
+        edges = Vector{TriEdge}()
+        for (i, ret) in zip([i1, i2], [ret1, ret2])
+            base_idx = length(tess.faces) + 1
+            t = tess.faces[i]
+            if ret == TRI_NEIGHBOR_A
+                s, q, r = t.a, t.b, t.c
+                ns, nq, nr = t.na, t.nb, t.nc
+            elseif ret == TRI_NEIGHBOR_B
+                s, q, r = t.b, t.c, t.a
+                ns, nq, nr = t.nb, t.nc, t.na
+            else # ret == TRI_NEIGHBOR_C
+                s, q, r = t.c, t.a, t.b
+                ns, nq, nr = t.nc, t.na, t.nb
+            end
+            t₁ = DelaunayTriangle(s, q, vert, 0, base_idx+1, nr, true)
+            t₂ = DelaunayTriangle(s, vert, r, 0, nq, base_idx+0, true)
+            (nr > 0) && _update_neighbor(tess.faces[nr], i, base_idx+0)
+            (nq > 0) && _update_neighbor(tess.faces[nq], i, base_idx+1)
+            push!(tess.faces, t₁)
+            push!(tess.faces, t₂)
+            push!(edges, TriEdge(base_idx+0, TRI_NEIGHBOR_C))
+            push!(edges, TriEdge(base_idx+1, TRI_NEIGHBOR_B))
+            t.active = false
+        end
+        # adjust neighboring triangles
+        tess.faces[end - 3].na = length(tess.faces) - 0
+        tess.faces[end - 2].na = length(tess.faces) - 1
+        tess.faces[end - 1].na = length(tess.faces) - 2
+        tess.faces[end - 0].na = length(tess.faces) - 3
+
+        _flip(tess, edges)
+
+        if !_check_nbr(tess)
+            #break
+        end
+    end
 end
 
 # update neighbor indices for surrounding triangles
@@ -185,9 +197,9 @@ function _check_nbr(tess::DelaunayTess2D{T}) where T <: Point2
 end
 
 # Lawson flip algorithm
-function _flip(tess::DelaunayTess2D{T}) where T <: Point2
+function _flip(tess::DelaunayTess2D{T}, queue_init::Vector{TriEdge}) where T <: Point2
     seen::Set{TriEdge} = Set()
-    queue::Vector{TriEdge} = []
+    queue::Vector{TriEdge} = queue_init
 
     # init queue
     for offset in 0:2
@@ -336,7 +348,16 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
     end
 
     # means a triangle should be split but we only found one triangle
-    @assert t1 == 0
+    if t1 != 0
+        println("problem!")
+        println("]]] ", pt)
+        t = tess.faces[t1]
+        println("]]] ", t)
+        println("]]] NA -> ", tess.faces[t.na])
+        println("]]] NB -> ", tess.faces[t.nb])
+        println("]]] NC -> ", tess.faces[t.nc])
+    end
+    #@assert t1 == 0
     return (0, 0)
 end
 
@@ -349,4 +370,107 @@ function _coordinate_bounds(V::AbstractVector{T}) where T <: Point2
         (v[2] < mincoord) && (mincoord = v[2])
     end
     return (mincoord, maxcoord)
+end
+
+function conformingDelaunay2D(V::AbstractVector{T}, pslg::PSLG) where T <: Point2
+    tess = delaunay2D(V)
+
+    for seg in pslg.segments
+        if !_edge_in_tess(V, tess, seg)
+            println("Segment ", seg, " not in tess")
+            _insert_segment(V, tess, seg)
+        end
+    end
+
+    return tess
+end
+
+function _edge_in_tess(V::AbstractVector{T}, tess::DelaunayTess2D{T},
+    seg::IndexedLineSegment) where T <: Point2
+
+    for t in tess.faces
+        if !t.active
+            continue
+        end
+
+        pa, pb = V[seg.a], V[seg.b]
+        r1 = intriangle(t, pa)
+        r2 = intriangle(t, pb)
+        if r1 > 0 && r2 > 0
+            if _edge_in_tri(t, pa, pb)
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+function _edge_in_tri(tri::DelaunayTriangle{T}, p::T, q::T) where T <: Point2
+    if tri.a == p
+        return tri.b == q || tri.c == q
+    elseif tri.b == p
+        return tri.a == q || tri.c == q
+    elseif tri.c == p
+        return tri.a == q || tri.b == q
+    end
+    return false
+end
+
+
+function _insert_segment(V::AbstractVector{T}, tess::DelaunayTess2D{T},
+    seg::IndexedLineSegment) where T <: Point2
+
+    pa = V[seg.a]
+    pb = V[seg.b]
+
+    pc = (pa + pb)/2
+
+    i1, i2, ret1, ret2 = _find_tri_idx(tess, pc)
+    @assert i1 != 0
+
+    t = tess.faces[i1]
+    if _edge_in_tri(t, pa, pb)
+        println("Segment insertion ret!")
+        return
+    end
+
+    l1_bc, l2_bc, pc_bc = lineintersection(t.b, t.c, pa, pb)
+    l1_ac, l2_ac, pc_ac = lineintersection(t.a, t.c, pa, pb)
+    l1_ab, l2_ab, pc_ab = lineintersection(t.a, t.b, pa, pb)
+
+    if t.a == pa || t.a == pb
+        @assert 0 <= l1_bc <= 1 && 0 <= l2_bc <= 1
+        pc = pc_bc
+    elseif t.b == pa || t.b == pb
+        @assert 0 <= l1_ac <= 1 && 0 <= l2_ac <= 1
+        pc = pc_ac
+    elseif t.c == pa || t.b == pc
+        @assert 0 <= l1_ab <= 1 && 0 <= l2_ab <= 1
+        pc = pc_ab
+    else
+        if 0 <= l1_bc <= 1
+            pc = pc_bc
+        elseif 0 <= l1_ac <= 1
+            pc = pc_ac
+        elseif 0 <= l1_ab <= 1
+            pc = pc_ab
+        else
+            println(">>> ", t)
+            println(">>> ", pa)
+            println(">>> ", pb)
+            @assert false
+        end
+    end
+
+    push!(V, pc)
+    pc_idx = length(V)
+    println(">>>> INSERTING PT")
+    _insert_point(tess, pc)
+
+    seg1 = IndexedLineSegment(seg.a, pc_idx)
+    seg2 = IndexedLineSegment(pc_idx, seg.b)
+
+    _insert_segment(V, tess, seg1)
+    _insert_segment(V, tess, seg2)
 end

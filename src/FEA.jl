@@ -5,9 +5,12 @@ include("triangulation.jl")
 include("integrate.jl")
 
 export DelaunayTess2D,
-        delaunay2D,
-        integratetri,
+        PSLG,
+        IndexedLineSegment,
         ACWTriangle,
+        delaunay2D,
+        conformingDelaunay2D
+        integratetri,
         barycentric
 
 end

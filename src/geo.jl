@@ -1,4 +1,5 @@
 using GeometryTypes
+using LinearAlgebra
 
 const TRI_NEIGHBOR_A = 1
 const TRI_NEIGHBOR_B = 2
@@ -82,7 +83,10 @@ function isquadconvex(a::T, b::T, c::T, d::T) where T <: Point2
     end
 end
 
-# transform point P to barymetric coords
+# transform point P to barymetric coords by solving:
+#   W_1*a_x + W_2*b_x + W_3*c_x = P_x
+#   W_1*a_y + W_2*b_y + W_3*c_y = P_y
+#   W_1     + W_2     + W_3     = 1
 function barycentric(tri::AbstractTriangle{T}, P::T) where T <: Point2
     A = [
         tri.a[1] tri.b[1] tri.c[1]
@@ -91,4 +95,25 @@ function barycentric(tri::AbstractTriangle{T}, P::T) where T <: Point2
     ]
     b = [P[1] ; P[2] ; 1.0]
     return A \ b
+end
+
+# solves
+# a1_x + (a2_x - a1_x)*t = b1_x + (b2_x - b1_x)*s
+# a1_y + (a2_y - a1_y)*t = b1_y + (b2_y - b1_y)*s
+function lineintersection(a1::T, a2::T, b1::T, b2::T) where T <: Point2
+    A = [
+        (a2[1] - a1[1]) -(b2[1] - b1[1])
+        (a2[2] - a1[2]) -(b2[2] - b1[2])
+    ]
+    if det(A) ≈ 0
+        return Inf, Inf, T(0,0)
+    end
+    b = [
+        b1[1] - a1[1]
+        b1[2] - a1[2]
+    ]
+    t, s = A \ b
+    # intersection point
+    p = a1 + (a2 - a1)*t
+    return t, s, p
 end
