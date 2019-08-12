@@ -445,7 +445,7 @@ function _insert_segment(V::AbstractVector{T}, tess::DelaunayTess2D{T},
     elseif t.b == pa || t.b == pb
         @assert 0 <= l1_ac <= 1 && 0 <= l2_ac <= 1
         pc = pc_ac
-    elseif t.c == pa || t.b == pc
+    elseif t.c == pa || t.c == pb
         @assert 0 <= l1_ab <= 1 && 0 <= l2_ab <= 1
         pc = pc_ab
     else
@@ -456,16 +456,12 @@ function _insert_segment(V::AbstractVector{T}, tess::DelaunayTess2D{T},
         elseif 0 <= l1_ab <= 1
             pc = pc_ab
         else
-            println(">>> ", t)
-            println(">>> ", pa)
-            println(">>> ", pb)
             @assert false
         end
     end
 
     push!(V, pc)
     pc_idx = length(V)
-    println(">>>> INSERTING PT")
     _insert_point(tess, pc)
 
     seg1 = IndexedLineSegment(seg.a, pc_idx)
