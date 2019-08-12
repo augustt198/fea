@@ -11,8 +11,17 @@ abstract type AbstractCWTriangle{T} <: AbstractTriangle{T} end
 # vertices stored anticlockwise
 abstract type AbstractACWTriangle{T} <: AbstractTriangle{T} end
 
+struct CWTriangle{T <: Point2} <: AbstractCWTriangle{T}
+    a::T; b::T; c::T
+end
+
 struct ACWTriangle{T <: Point2} <: AbstractACWTriangle{T}
     a::T; b::T; c::T
+end
+
+struct IndexedLineSegment
+    a::Int64
+    b::Int64
 end
 
 # returns -1 if T not in tri
@@ -117,4 +126,31 @@ function lineintersection(a1::T, a2::T, b1::T, b2::T) where T <: Point2
     # intersection point
     p = a1 + (a2 - a1)*t
     return t, s, p
+end
+
+function regioncrossings(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
+    pt::T) where T <: Point2
+
+    pt_proj = pt + T(1, 0)
+
+    crossings = 0
+    for seg in dR
+        pa, pb = V[seg.a], V[seg.b]
+        l1, l2, _ = lineintersection(pa, pb, pt, pt_proj)
+
+        # need to be careful about the projected line
+        # crossing through a vertex in dR
+        if 0 <= l1 < 1 && l2 >= 0
+            crossings += 1
+        end
+    end
+
+    return crossings
+end
+
+# determines if pt is inside region with boundary dR by counting crossings
+function regiontestinside(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
+    pt::T) where T <: Point2
+
+    return isodd(regioncrossings(V, dR, pt))
 end

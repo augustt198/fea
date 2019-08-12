@@ -24,11 +24,6 @@ mutable struct DelaunayTess2D{T<:Point2}
     faces::AbstractVector{DelaunayTriangle{T}}
 end
 
-struct IndexedLineSegment
-    a::Int64
-    b::Int64
-end
-
 struct PSLG
     segments::AbstractVector{IndexedLineSegment}
 end
@@ -421,9 +416,7 @@ end
 function _insert_segment(V::AbstractVector{T}, tess::DelaunayTess2D{T},
     seg::IndexedLineSegment) where T <: Point2
 
-    pa = V[seg.a]
-    pb = V[seg.b]
-
+    pa, pb = V[seg.a], V[seg.b]
     pc = (pa + pb)/2
 
     i1, i2, ret1, ret2 = _find_tri_idx(tess, pc)
