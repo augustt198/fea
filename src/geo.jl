@@ -47,7 +47,7 @@ function intriangle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
 end
 
 # assuming A, B, C are ccw
-function incircumcircle(tri::AbstractACWTriangle{T}, P::T) where T<: Point2
+function incircumcircle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
     A = tri.a ; B = tri.b ; C = tri.c
     M11 = A[1] - P[1]
     M21 = B[1] - P[1]
@@ -105,7 +105,8 @@ function lineintersection(a1::T, a2::T, b1::T, b2::T) where T <: Point2
         (a2[1] - a1[1]) -(b2[1] - b1[1])
         (a2[2] - a1[2]) -(b2[2] - b1[2])
     ]
-    if det(A) ≈ 0
+    ε = eps(eltype(T))
+    if isapprox(det(A), 0, atol=ε)
         return Inf, Inf, T(0,0)
     end
     b = [
