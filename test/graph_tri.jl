@@ -4,35 +4,23 @@ push!(LOAD_PATH, string(@__DIR__, "/../src/"))
 using GeometryTypes
 using FEA
 
-using Gadfly
+using Makie
 
 function plottess(tess::DelaunayTess2D{T}) where T <: Point2
-    x0 = Vector{eltype(T)}(undef, length(tess.faces)*3)
-    y0 = Vector{eltype(T)}(undef, length(tess.faces)*3)
-    x1 = Vector{eltype(T)}(undef, length(tess.faces)*3)
-    y1 = Vector{eltype(T)}(undef, length(tess.faces)*3)
-    for i in 1:length(tess.faces)
-        t = tess.faces[i]
-        j = i - 1
-        d = t.active
-        # segment AB
-        x0[j*3+1] = d ? t.a[1] : 0
-        y0[j*3+1] = d ? t.a[2] : 0
-        x1[j*3+1] = d ? t.b[1] : 0
-        y1[j*3+1] = d ? t.b[2] : 0
-        # segment BC
-        x0[j*3+2] = d ? t.b[1] : 0
-        y0[j*3+2] = d ? t.b[2] : 0
-        x1[j*3+2] = d ? t.c[1] : 0
-        y1[j*3+2] = d ? t.c[2] : 0
-        # segment CA
-        x0[j*3+3] = d ? t.c[1] : 0
-        y0[j*3+3] = d ? t.c[2] : 0
-        x1[j*3+3] = d ? t.a[1] : 0
-        y1[j*3+3] = d ? t.a[2] : 0
+    vertices = [0.0f0 0.0f0]
+    connectivity = [1 1 1]
+    for t in tess.faces
+        if t.active
+            idx = size(vertices)[1]
+            vertices = vcat(vertices, [t.a[1] t.a[2]])
+            vertices = vcat(vertices, [t.b[1] t.b[2]])
+            vertices = vcat(vertices, [t.c[1] t.c[2]])
+            connectivity = vcat(connectivity, [idx+1 idx+2 idx+3])
+        end
     end
-    #draw(SVG(24cm, 18cm), plot(x=x0, y=y0, xend=x1, yend=y1, Geom.segment))
-    plot(x=x0, y=y0, xend=x1, yend=y1, Geom.segment, Coord.cartesian(fixed=true))
+
+    scene = mesh(vertices, connectivity, color=:white, shading=false)
+    wireframe!(scene[end][1], color=(:black, 0.6), linewidth=2)
 end
 
 # testing

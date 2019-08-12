@@ -3,6 +3,7 @@ using GeometryTypes
 const MAX_COORD = 10
 
 # TODO: use hierarchical structure for faster triangle lookup
+# TODO: use vertex indices instead of values
 mutable struct DelaunayTriangle{T<:Point2} <: AbstractACWTriangle{T}
     # points in ccw order
     a::T; b::T; c::T
