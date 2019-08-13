@@ -9,6 +9,8 @@ using Makie
 function plottess(tess::DelaunayTess2D{T}) where T <: Point2
     vertices = [0.0f0 0.0f0]
     connectivity = [1 1 1]
+    color = [0.1]
+    i = 0
     for t in tess.faces
         if t.active
             idx = size(vertices)[1]
@@ -16,10 +18,14 @@ function plottess(tess::DelaunayTess2D{T}) where T <: Point2
             vertices = vcat(vertices, [t.b[1] t.b[2]])
             vertices = vcat(vertices, [t.c[1] t.c[2]])
             connectivity = vcat(connectivity, [idx+1 idx+2 idx+3])
+            push!(color, 1.0)
+            push!(color, 1.0)
+            push!(color, 1.0)
         end
     end
 
-    scene = mesh(vertices, connectivity, color=:white, shading=false)
+    scene = mesh(vertices, connectivity, color=color, shading=false, colormap=:plasma)
+    cam = cam2d!(scene, panbutton=Mouse.left)
     wireframe!(scene[end][1], color=(:black, 0.6), linewidth=2)
 end
 
