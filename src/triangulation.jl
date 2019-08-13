@@ -3,10 +3,9 @@ using GeometryTypes
 const MAX_COORD = 10
 
 # TODO: use hierarchical structure for faster triangle lookup
-# TODO: use vertex indices instead of values
-mutable struct DelaunayTriangle{T<:Point2} <: AbstractACWTriangle{T}
-    # points in ccw order
-    a::T; b::T; c::T
+mutable struct DelaunayTriangle
+    # point indices in ccw order
+    a::Int64; b::Int64; c::Int64
     # neighbor indices. 0 = no neighbor
     na::Int64; nb::Int64; nc::Int64
     active::Bool
@@ -22,7 +21,8 @@ struct TriEdge
 end
 
 mutable struct DelaunayTess2D{T<:Point2}
-    faces::AbstractVector{DelaunayTriangle{T}}
+    verts::AbstractVector{T}
+    faces::AbstractVector{DelaunayTriangle}
 end
 
 struct PSLG
@@ -30,28 +30,29 @@ struct PSLG
 end
 
 function delaunay2D(V::AbstractVector{T}) where T <: Point2
-    minc, maxc = _coordinate_bounds(V)
-    minc -= 1
-    maxc += 1
+    maxc = _coordinate_bound(V)
 
     # base triangle large enough to enclose all points in V
-    base_tri = DelaunayTriangle(
-        Point2f0(0, MAX_COORD), Point2f0(-MAX_COORD, -MAX_COORD), Point2f0(MAX_COORD, -MAX_COORD),
-        0, 0, 0, true
-    )
-    tess = DelaunayTess2D([base_tri])
+    v₁ = T(0,        4*maxc)
+    v₂ = T(-4*maxc, -4*maxc)
+    v₃ = T(4*maxc,   -4*maxc)
+    V = vcat([v₁, v₂, v₃], V)
+    base_tri = DelaunayTriangle(1, 2, 3, 0, 0, 0, true)
+    println(">>>>>>>>>> ", typeof(V))
+    tess = DelaunayTess2D(V, [base_tri])
 
-    for (i, vert) in enumerate(V)
-        _insert_point(tess, vert)
+    for i in 4:length(tess.verts)
+        _insert_point(tess, i)
     end
 
     _deactivate_extremal_triangles(tess)
     _check_nbr(tess)
-
+ 
     return tess
 end
 
-function _insert_point(tess::DelaunayTess2D{T}, vert::T) where T <: Point2
+function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
+    vert = tess.verts[vidx]
     i1, i2, ret1, ret2 = _find_tri_idx(tess, vert)
 
     if ret1 == 0 # interior
@@ -69,9 +70,9 @@ function _insert_point(tess::DelaunayTess2D{T}, vert::T) where T <: Point2
         # +-------------+
         # b             c
         base_idx = length(tess.faces) + 1
-        t₁ = DelaunayTriangle(t.a, t.b, vert, base_idx+2, base_idx+1, t.nc, true) # tri @ base_idx+0
-        t₂ = DelaunayTriangle(t.c, t.a, vert, base_idx+0, base_idx+2, t.nb, true) # tri @ base_idx+1
-        t₃ = DelaunayTriangle(t.b, t.c, vert, base_idx+1, base_idx+0, t.na, true) # tri @ base_idx+2
+        t₁ = DelaunayTriangle(t.a, t.b, vidx, base_idx+2, base_idx+1, t.nc, true) # tri @ base_idx+0
+        t₂ = DelaunayTriangle(t.c, t.a, vidx, base_idx+0, base_idx+2, t.nb, true) # tri @ base_idx+1
+        t₃ = DelaunayTriangle(t.b, t.c, vidx, base_idx+1, base_idx+0, t.na, true) # tri @ base_idx+2
         push!(tess.faces, t₁)
         push!(tess.faces, t₂)
         push!(tess.faces, t₃)
@@ -113,8 +114,8 @@ function _insert_point(tess::DelaunayTess2D{T}, vert::T) where T <: Point2
                 s, q, r = t.c, t.a, t.b
                 ns, nq, nr = t.nc, t.na, t.nb
             end
-            t₁ = DelaunayTriangle(s, q, vert, 0, base_idx+1, nr, true)
-            t₂ = DelaunayTriangle(s, vert, r, 0, nq, base_idx+0, true)
+            t₁ = DelaunayTriangle(s, q, vidx, 0, base_idx+1, nr, true)
+            t₂ = DelaunayTriangle(s, vidx, r, 0, nq, base_idx+0, true)
             (nr > 0) && _update_neighbor(tess.faces[nr], i, base_idx+0)
             (nq > 0) && _update_neighbor(tess.faces[nq], i, base_idx+1)
             push!(tess.faces, t₁)
@@ -138,7 +139,7 @@ function _insert_point(tess::DelaunayTess2D{T}, vert::T) where T <: Point2
 end
 
 # update neighbor indices for surrounding triangles
-function _update_neighbor(t::DelaunayTriangle{T}, old_idx::Int, new_idx::Int) where T <: Point2
+function _update_neighbor(t::DelaunayTriangle, old_idx::Int, new_idx::Int) where T <: Point2
     if t.na == old_idx
         t.na = new_idx
     elseif t.nb == old_idx
@@ -148,14 +149,18 @@ function _update_neighbor(t::DelaunayTriangle{T}, old_idx::Int, new_idx::Int) wh
     end
 end
 
-function _shares_common_edge(t::DelaunayTriangle{T}, n::DelaunayTriangle{T}) where T <: Point2
-    length(unique([t.a, t.b, t.c, n.a, n.b, n.c])) == 4
+function _shares_common_edge(tess::DelaunayTess2D{T}, t::DelaunayTriangle,
+    n::DelaunayTriangle) where T <: Point2
+
+    p_ta, p_tb, p_tc = tess.verts[[t.a, t.b, t.c]]
+    p_na, p_nb, p_nc = tess.verts[[n.a, n.b, n.c]]
+    length(unique([p_ta, p_tb, p_tc, p_na, p_nb, p_nc])) == 4
 end
 
-function _check_nbr_single(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T}) where T<: Point2
+function _check_nbr_single(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T<: Point2
     good = true
     if t.na > 0
-        if !_shares_common_edge(t, tess.faces[t.na])
+        if !_shares_common_edge(tess, t, tess.faces[t.na])
             good = false
             println("********************** BAD A")
             println("**********************-> T ", t)
@@ -163,7 +168,7 @@ function _check_nbr_single(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T}) wher
         end
     end
     if t.nb > 0
-        if !_shares_common_edge(t, tess.faces[t.nb])
+        if !_shares_common_edge(tess, t, tess.faces[t.nb])
             good = false
             println("********************** BAD B")
             println("**********************-> T ", t)
@@ -171,7 +176,7 @@ function _check_nbr_single(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T}) wher
         end
     end
     if t.nc > 0
-        if !_shares_common_edge(t, tess.faces[t.nc])
+        if !_shares_common_edge(tess, t, tess.faces[t.nc])
             good = false
             println("********************** BAD C")
             println("**********************-> T ", t)
@@ -240,11 +245,12 @@ function _flip(tess::DelaunayTess2D{T}, queue_init::Vector{TriEdge}) where T <: 
             v = n.c
         end
 
-        if !isquadconvex(u, c1, v, c2)
+        if !isquadconvex(tess.verts[u], tess.verts[c1], tess.verts[v], tess.verts[c2])
             continue # nothing to do
         end
 
-        if incircumcircle(t, v)
+        pt_a, pt_b, pt_c, pt_v = tess.verts[[t.a, t.b, t.c, v]]
+        if incircumcircle(pt_a, pt_b, pt_c, pt_v)
             edge1, edge2 = _flip_tri(tess, t, n, it, in, v)
             push!(queue, edge1)
             push!(queue, edge2)
@@ -252,8 +258,8 @@ function _flip(tess::DelaunayTess2D{T}, queue_init::Vector{TriEdge}) where T <: 
     end
 end
 
-function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle{T},
-    n::DelaunayTriangle{T}, it::Int64, in::Int64, v::T) where T <: Point2
+function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle,
+    n::DelaunayTriangle, it::Int64, in::Int64, v::Int64) where T <: Point2
     # flip diagram:
     #               ---->
     #        +(X)               +
@@ -317,9 +323,10 @@ end
 
 function _deactivate_extremal_triangles(tess::DelaunayTess2D{T}) where T <: Point2
     for t in tess.faces
-        extremal = abs(t.a[1]) == MAX_COORD || abs(t.a[2]) == MAX_COORD ||
-                    abs(t.b[1]) == MAX_COORD || abs(t.b[2]) == MAX_COORD ||
-                    abs(t.c[1]) == MAX_COORD || abs(t.c[2]) == MAX_COORD
+        # first three vertices are extremal pts
+        extremal = (t.a == 1 || t.a == 2 || t.a == 3 ||
+                    t.b == 1 || t.b == 2 || t.b == 3 ||
+                    t.c == 1 || t.c == 2 || t.c == 3)
         t.active = t.active && !extremal
     end
 end
@@ -329,7 +336,8 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
     ret1 = 0
     for (i, tri) in enumerate(tess.faces)
         if tri.active
-            ret = intriangle(tri, pt)
+            a, b, c = tess.verts[[tri.a, tri.b, tri.c]]
+            ret = intriangle(a, b, c, pt)
             if ret == 0
                 return (i, 0, ret, 0)
             elseif ret > 0
@@ -357,15 +365,14 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
     return (0, 0)
 end
 
-function _coordinate_bounds(V::AbstractVector{T}) where T <: Point2
-    mincoord = Inf; maxcoord = -Inf
+function _coordinate_bound(V::AbstractVector{T}) where T <: Point2
+    maxcoord = -Inf
     for v in V
-        (v[1] > maxcoord) && (maxcoord = v[1])
-        (v[1] < mincoord) && (mincoord = v[1])
-        (v[2] > maxcoord) && (maxcoord = v[2])
-        (v[2] < mincoord) && (mincoord = v[2])
+        x, y = abs(v[1]), abs(v[2])
+        (x > maxcoord) && (maxcoord = x)
+        (y > maxcoord) && (maxcoord = y)
     end
-    return (mincoord, maxcoord)
+    return maxcoord
 end
 
 function conformingDelaunay2D(V::AbstractVector{T}, pslg::PSLG) where T <: Point2
@@ -381,6 +388,7 @@ function conformingDelaunay2D(V::AbstractVector{T}, pslg::PSLG) where T <: Point
     return tess
 end
 
+# FIX: use indexed vertices
 function _edge_in_tess(V::AbstractVector{T}, tess::DelaunayTess2D{T},
     seg::IndexedLineSegment) where T <: Point2
 
@@ -402,7 +410,8 @@ function _edge_in_tess(V::AbstractVector{T}, tess::DelaunayTess2D{T},
     return false
 end
 
-function _edge_in_tri(tri::DelaunayTriangle{T}, p::T, q::T) where T <: Point2
+# FIX: use indexed vertices
+function _edge_in_tri(tri::DelaunayTriangle, p::T, q::T) where T <: Point2
     if tri.a == p
         return tri.b == q || tri.c == q
     elseif tri.b == p
@@ -413,7 +422,7 @@ function _edge_in_tri(tri::DelaunayTriangle{T}, p::T, q::T) where T <: Point2
     return false
 end
 
-
+# FIX: use indexed vertices
 function _insert_segment(V::AbstractVector{T}, tess::DelaunayTess2D{T},
     seg::IndexedLineSegment) where T <: Point2
 

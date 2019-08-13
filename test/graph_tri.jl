@@ -7,22 +7,18 @@ using FEA
 using Makie
 
 function plottess(tess::DelaunayTess2D{T}) where T <: Point2
-    vertices = [0.0f0 0.0f0]
-    connectivity = [1 1 1]
-    color = [0.1]
-    i = 0
-    for t in tess.faces
-        if t.active
-            idx = size(vertices)[1]
-            vertices = vcat(vertices, [t.a[1] t.a[2]])
-            vertices = vcat(vertices, [t.b[1] t.b[2]])
-            vertices = vcat(vertices, [t.c[1] t.c[2]])
-            connectivity = vcat(connectivity, [idx+1 idx+2 idx+3])
-            push!(color, 1.0)
-            push!(color, 1.0)
-            push!(color, 1.0)
-        end
-    end
+    vertices_x     = map(v -> v[1], tess.verts)
+    vertices_y     = map(v -> v[2], tess.verts)
+    vertices       = hcat(vertices_x, vertices_y)
+    faces_active   = filter(t -> t.active, tess.faces)
+    connectivity_a = map(t -> t.a, faces_active)
+    connectivity_b = map(t -> t.b, faces_active)
+    connectivity_c = map(t -> t.c, faces_active)
+    connectivity   = hcat(connectivity_a, connectivity_b, connectivity_c)
+    color          = sin.(collect(1:length(tess.verts)) / 50.0f0)
+
+    # hide extreme points
+    vertices[1:3, :]  .= 0
 
     scene = mesh(vertices, connectivity, color=color, shading=false, colormap=:plasma)
     cam = cam2d!(scene, panbutton=Mouse.left)
@@ -38,7 +34,9 @@ base3 = map(x -> Point2f0(1.5*cos(x), 1.5*sin(x)), degs)[1:divs-1]
 base4 = map(x -> Point2f0(rand(Float32)*2-1, rand(Float32)*2-1), degs)[1:divs-1]
 base = vcat(base1, base2, base3, base4)
 tess = delaunay2D(base)
-#plottess(tess)
+plottess(tess)
+
+#=
 
 idx = length(base)+1
 push!(base, Point2f0(0.5, 0.5))
@@ -54,3 +52,5 @@ push!(pslg.segments, IndexedLineSegment(idx+3, idx+0))
 
 tess = conformingDelaunay2D(base, pslg)
 plottess(tess)
+
+=#
