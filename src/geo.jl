@@ -22,14 +22,21 @@ end
 struct IndexedLineSegment
     a::Int64
     b::Int64
+    boundary::Bool
+end
+
+IndexedLineSegment(a, b) = IndexedLineSegment(a, b, false)
+
+function intriangle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
+    return intriangle(tri.a, tri.b, tri.c, P)
 end
 
 # returns -1 if T not in tri
 # returns 0 if T within tri
 # returns TRI_NEIGHBOR_A/B/C if T is on edge A/B/C
-function intriangle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
-    a    = tri.c-tri.b; b = tri.a-tri.c; c = tri.b-tri.a
-    ap   = P-tri.a; bp = P-tri.b; cp = P-tri.c
+function intriangle(A::T, B::T, C::T, P::T) where T <: Point2
+    a    = C-B; b = A-C; c = B-A
+    ap   = P-A; bp = P-B; cp = P-C
     a_bp = a[1]*bp[2] - a[2]*bp[1];
     c_ap = c[1]*ap[2] - c[2]*ap[1];
     b_cp = b[1]*cp[2] - b[2]*cp[1];
@@ -55,9 +62,12 @@ function intriangle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
     end
 end
 
-# assuming A, B, C are ccw
 function incircumcircle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
-    A = tri.a ; B = tri.b ; C = tri.c
+    return incircumcircle(tri.a, tri.b, tri.c, P)
+end
+
+# assuming A, B, C are ccw
+function incircumcircle(A::T, B::T, C::T, P::T) where T <: Point2
     M11 = A[1] - P[1]
     M21 = B[1] - P[1]
     M31 = C[1] - P[1]
@@ -92,14 +102,18 @@ function isquadconvex(a::T, b::T, c::T, d::T) where T <: Point2
     end
 end
 
+function barycentric(tri::AbstractTriangle{T}, P::T) where T <: Point2
+    return barycentric(tri.a, tri.b, tri.c, P)
+end
+
 # transform point P to barymetric coords by solving:
 #   W_1*a_x + W_2*b_x + W_3*c_x = P_x
 #   W_1*a_y + W_2*b_y + W_3*c_y = P_y
 #   W_1     + W_2     + W_3     = 1
-function barycentric(tri::AbstractTriangle{T}, P::T) where T <: Point2
-    A = [
-        tri.a[1] tri.b[1] tri.c[1]
-        tri.a[2] tri.b[2] tri.c[2]
+function barycentric(A::T, B::T, C::T, P::T) where T <: Point2
+    M = [
+        A[1] B[1] C[1]
+        A[2] B[2] C[2]
         1.0 1.0 1.0
     ]
     b = [P[1] ; P[2] ; 1.0]
@@ -135,13 +149,15 @@ function regioncrossings(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSeg
 
     crossings = 0
     for seg in dR
-        pa, pb = V[seg.a], V[seg.b]
-        l1, l2, _ = lineintersection(pa, pb, pt, pt_proj)
+        if seg.boundary
+            pa, pb = V[seg.a], V[seg.b]
+            l1, l2, _ = lineintersection(pa, pb, pt, pt_proj)
 
-        # need to be careful about the projected line
-        # crossing through a vertex in dR
-        if 0 <= l1 < 1 && l2 >= 0
-            crossings += 1
+            # need to be careful about the projected line
+            # crossing through a vertex in dR
+            if 0 <= l1 < 1 && l2 >= 0
+                crossings += 1
+            end
         end
     end
 
