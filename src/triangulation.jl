@@ -379,76 +379,65 @@ function conformingDelaunay2D(V::AbstractVector{T}, pslg::PSLG) where T <: Point
     tess = delaunay2D(V)
 
     for seg in pslg.segments
-        if !_edge_in_tess(V, tess, seg)
+        if !_edge_in_tess(tess, seg)
             println("Segment ", seg, " not in tess")
-            _insert_segment(V, tess, seg)
+            # to adjust for added triangle
+            seg_offset_idx = IndexedLineSegment(seg.a+3, seg.b+3)
+            _insert_segment(tess, seg_offset_idx)
         end
     end
 
     return tess
 end
 
-# FIX: use indexed vertices
-function _edge_in_tess(V::AbstractVector{T}, tess::DelaunayTess2D{T},
-    seg::IndexedLineSegment) where T <: Point2
-
+function _edge_in_tess(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where T <: Point2
     for t in tess.faces
-        if !t.active
-            continue
-        end
-
-        pa, pb = V[seg.a], V[seg.b]
-        r1 = intriangle(t, pa)
-        r2 = intriangle(t, pb)
-        if r1 > 0 && r2 > 0
-            if _edge_in_tri(t, pa, pb)
-                return true
-            end
+        if !t.active && _edge_in_tri(t, seg)
+            return true
         end
     end
 
     return false
 end
 
-# FIX: use indexed vertices
-function _edge_in_tri(tri::DelaunayTriangle, p::T, q::T) where T <: Point2
-    if tri.a == p
-        return tri.b == q || tri.c == q
-    elseif tri.b == p
-        return tri.a == q || tri.c == q
-    elseif tri.c == p
-        return tri.a == q || tri.b == q
+function _edge_in_tri(tri::DelaunayTriangle, seg::IndexedLineSegment) where T <: Point2
+    if tri.a == seg.a
+        return tri.b == seg.b || tri.c == seg.b
+    elseif tri.b == seg.a
+        return tri.a == seg.b || tri.c == seg.b
+    elseif tri.c == seg.a
+        return tri.a == seg.b || tri.b == seg.b
     end
     return false
 end
 
 # FIX: use indexed vertices
-function _insert_segment(V::AbstractVector{T}, tess::DelaunayTess2D{T},
-    seg::IndexedLineSegment) where T <: Point2
+function _insert_segment(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where T <: Point2
 
-    pa, pb = V[seg.a], V[seg.b]
-    pc = (pa + pb)/2
+    pa, pb = tess.verts[[seg.a, seg.b]]
+    pc = (pa + pb)/2 # midpoint
 
     i1, i2, ret1, ret2 = _find_tri_idx(tess, pc)
     @assert i1 != 0
 
     t = tess.faces[i1]
-    if _edge_in_tri(t, pa, pb)
+    if _edge_in_tri(t, seg)
         println("Segment insertion ret!")
         return
     end
 
-    l1_bc, l2_bc, pc_bc = lineintersection(t.b, t.c, pa, pb)
-    l1_ac, l2_ac, pc_ac = lineintersection(t.a, t.c, pa, pb)
-    l1_ab, l2_ab, pc_ab = lineintersection(t.a, t.b, pa, pb)
+    p_ta, p_tb, p_tc = tess.verts[[t.a, t.b, t.c]]
+    l1_bc, l2_bc, pc_bc = lineintersection(p_tb, p_tc, pa, pb)
+    l1_ac, l2_ac, pc_ac = lineintersection(p_ta, p_tc, pa, pb)
+    l1_ab, l2_ab, pc_ab = lineintersection(p_ta, p_tb, pa, pb)
 
-    if t.a == pa || t.a == pb
+    if t.a == seg.a || t.a == seg.b
         @assert 0 <= l1_bc <= 1 && 0 <= l2_bc <= 1
         pc = pc_bc
-    elseif t.b == pa || t.b == pb
+    elseif t.b == seg.a || t.b == seg.b
         @assert 0 <= l1_ac <= 1 && 0 <= l2_ac <= 1
         pc = pc_ac
-    elseif t.c == pa || t.c == pb
+    elseif t.c == seg.a || t.c == seg.b
         @assert 0 <= l1_ab <= 1 && 0 <= l2_ab <= 1
         pc = pc_ab
     else
@@ -463,13 +452,13 @@ function _insert_segment(V::AbstractVector{T}, tess::DelaunayTess2D{T},
         end
     end
 
-    push!(V, pc)
-    pc_idx = length(V)
-    _insert_point(tess, pc)
+    push!(tess.verts, pc)
+    pc_idx = length(tess.verts)
+    _insert_point(tess, pc_idx)
 
     seg1 = IndexedLineSegment(seg.a, pc_idx)
     seg2 = IndexedLineSegment(pc_idx, seg.b)
 
-    _insert_segment(V, tess, seg1)
-    _insert_segment(V, tess, seg2)
+    _insert_segment(tess, seg1)
+    _insert_segment(tess, seg2)
 end
