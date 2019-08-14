@@ -170,3 +170,21 @@ function regiontestinside(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSe
 
     return isodd(regioncrossings(V, dR, pt))
 end
+
+#       + a
+#      / \
+#   d +   + e
+#    /     \
+# b +-------+ c
+function circumcenterwithradius(a::T, b::T, c::T) where T <: Point2
+    d = (a + b) / 2
+    e = (a + c) / 2
+    vec_ab = b - a
+    vec_ac = c - a
+    vec_d_normal = [-vec_ab[2] ; vec_ab[1]]
+    vec_e_normal = [vec_ac[2] ; -vec_ac[1]]
+
+    l1, l2, o = lineintersection(d, d + vec_d_normal, e, e + vec_e_normal)
+    R = sqrt(sum((o - a) .^ 2))
+    return o, R
+end
