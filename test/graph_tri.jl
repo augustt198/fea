@@ -18,9 +18,9 @@ function plottess(tess::DelaunayTess2D{T}) where T <: Point2
     color          = sin.(collect(1:length(tess.verts)) / 50.0f0)
 
     # hide extreme points
-    vertices[1:3, :]  .= 0
-
-    scene = mesh(vertices, connectivity, color=color, shading=false, colormap=:plasma)
+    vertices[1:3, :]  .= vertices[4:4, :]
+    scene = scatter(vertices, color=:black, markersize=0.025)
+    mesh!(scene, vertices, connectivity, color=color, shading=false, colormap=:plasma)
     cam = cam2d!(scene, panbutton=Mouse.left)
     wireframe!(scene[end][1], color=(:black, 0.6), linewidth=2)
 end
@@ -28,9 +28,9 @@ end
 # testing
 divs = 100
 degs = LinRange(0, 2*π, divs)
-base1 = map(x -> Point2f0(cos(x), sin(x)), degs)[1:divs-1]
-base2 = map(x -> Point2f0(2*cos(x), 2*sin(x)), degs)[1:divs-1]
-base3 = map(x -> Point2f0(1.5*cos(x), 1.5*sin(x)), degs)[1:divs-1]
+base1 = map(x -> Point2f0(1.0*cos(x), 1.0*sin(x)), degs)[1:divs-1]
+base2 = map(x -> Point2f0(1.5*cos(x), 1.5*sin(x)), degs)[1:divs-1]
+base3 = map(x -> Point2f0(1.25*cos(x), 1.25*sin(x)), degs)[1:divs-1]
 base4 = map(x -> Point2f0(rand(Float32)*2-1, rand(Float32)*2-1), degs)[1:divs-1]
 base = vcat(base1, base2, base3, base4)
 tess = delaunay2D(base)
