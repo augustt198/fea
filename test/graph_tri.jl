@@ -26,7 +26,7 @@ function plottess(tess::DelaunayTess2D{T}) where T <: Point2
 end
 
 # testing
-divs = 25
+divs = 100
 degs = LinRange(0, 2*π, divs)
 base1 = map(x -> Point2f0(cos(x), sin(x)), degs)[1:divs-1]
 base2 = map(x -> Point2f0(2*cos(x), 2*sin(x)), degs)[1:divs-1]

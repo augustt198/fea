@@ -38,7 +38,6 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     v₃ = T(4*maxc,   -4*maxc)
     V = vcat([v₁, v₂, v₃], V)
     base_tri = DelaunayTriangle(1, 2, 3, 0, 0, 0, true)
-    println(">>>>>>>>>> ", typeof(V))
     tess = DelaunayTess2D(V, [base_tri])
 
     for i in 4:length(tess.verts)
@@ -352,16 +351,7 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
     end
 
     # means a triangle should be split but we only found one triangle
-    if t1 != 0
-        println("problem!")
-        println("]]] ", pt)
-        t = tess.faces[t1]
-        println("]]] ", t)
-        println("]]] NA -> ", tess.faces[t.na])
-        println("]]] NB -> ", tess.faces[t.nb])
-        println("]]] NC -> ", tess.faces[t.nc])
-    end
-    #@assert t1 == 0
+    @assert t1 == 0
     return (0, 0)
 end
 
@@ -422,7 +412,6 @@ function _insert_segment(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where
 
     t = tess.faces[i1]
     if _edge_in_tri(t, seg)
-        println("Segment insertion ret!")
         return
     end
 
