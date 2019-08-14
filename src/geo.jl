@@ -5,6 +5,10 @@ const TRI_NEIGHBOR_A = 1
 const TRI_NEIGHBOR_B = 2
 const TRI_NEIGHBOR_C = 3
 
+const TRI_VERTEX_A = 1
+const TRI_VERTEX_B = 2
+const TRI_VERTEX_C = 3
+
 abstract type AbstractTriangle{T} end
 # vertices stored clockwise
 abstract type AbstractCWTriangle{T} <: AbstractTriangle{T} end
@@ -22,6 +26,8 @@ end
 struct IndexedLineSegment
     a::Int64
     b::Int64
+    # whether this segment forms a boundary of a region
+    # or an internal feature
     boundary::Bool
 end
 
@@ -41,6 +47,7 @@ function intriangle(A::T, B::T, C::T, P::T) where T <: Point2
     c_ap = c[1]*ap[2] - c[2]*ap[1];
     b_cp = b[1]*cp[2] - b[2]*cp[1];
 
+    # TODO don't hardcode Float32
     t0        = zero(Float32)
     epsilon   = eps(Float32)
     a_bp_zero = isapprox(a_bp, t0, atol=epsilon)
