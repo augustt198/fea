@@ -12,6 +12,7 @@ export DelaunayTess2D,
         delaunay2D,
         conformingDelaunay2D
         integratetri,
-        barycentric
+        barycentric,
+        circumcenterwithradius
 
 end

@@ -19,7 +19,23 @@ function plottess(tess::DelaunayTess2D{T}) where T <: Point2
 
     # hide extreme points
     vertices[1:3, :]  .= vertices[4:4, :]
-    scene = scatter(vertices, color=:black, markersize=0.025)
+
+    scene = Scene()
+
+    # enable to plot circumcircles
+    if false
+        circle_fn = (t) -> begin
+            a = vertices[t[1], :]
+            b = vertices[t[2], :]
+            c = vertices[t[3], :]
+            o, R = FEA.circumcenterwithradius(Point2f0(a), Point2f0(b), Point2f0(c))
+            Circle(Point2f0(o), R)
+        end
+        circles = map(circle_fn, eachrow(connectivity))
+        poly!(scene, circles, color=(:white, 0.0), strokecolor=:red, strokewidth=3)
+    end
+
+    scatter!(scene, vertices, color=:black, markersize=0.025)
     mesh!(scene, vertices, connectivity, color=color, shading=false, colormap=:plasma)
     cam = cam2d!(scene, panbutton=Mouse.left)
     wireframe!(scene[end][1], color=(:black, 0.6), linewidth=2)
