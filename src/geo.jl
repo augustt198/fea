@@ -124,7 +124,7 @@ function barycentric(A::T, B::T, C::T, P::T) where T <: Point2
         1.0 1.0 1.0
     ]
     b = [P[1] ; P[2] ; 1.0]
-    return A \ b
+    return M \ b
 end
 
 # solves
