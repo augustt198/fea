@@ -3,7 +3,7 @@ using FEA
 
 using Makie
 
-function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false) where T <: Point2
+function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false, ncolors=[]) where T <: Point2
     vertices_x     = map(v -> v[1], tess.verts)
     vertices_y     = map(v -> v[2], tess.verts)
     vertices       = hcat(vertices_x, vertices_y)
@@ -33,7 +33,7 @@ function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false) where
     end
 
     scatter!(scene, vertices, color=:black, markersize=0.025)
-    mesh!(scene, vertices, connectivity, color=color, shading=false, colormap=:plasma)
+    mesh!(scene, vertices, connectivity, color=ncolors, shading=false, colormap=:plasma)
     cam = cam2d!(scene, panbutton=Mouse.left)
     wireframe!(scene[end][1], color=(:black, 0.6), linewidth=2)
     return scene

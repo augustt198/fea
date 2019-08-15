@@ -1,5 +1,6 @@
 using GeometryTypes
 using SparseArrays
+using LinearAlgebra
 
 struct FEAMesh{T <: Point2} 
     tess::DelaunayTess2D{T}
@@ -10,19 +11,20 @@ end
 function createFEAMesh(V::AbstractVector{T}, pslg::PSLG) where T <: Point2
     tess = conformingDelaunay2D(V, pslg)
 
-    boundary_vec = Vector{Bool}(undef, length(V))
+    boundary_vec = Vector{Bool}(undef, length(tess.verts))
+    println("+++++++++++++ ", length(boundary_vec))
     boundary_vec .= false
     for seg in pslg.segments
         if seg.boundary
-            boundary_vec[seg.a] = true
-            boundary_vec[seg.b] = true
+            boundary_vec[seg.a+3] = true
+            boundary_vec[seg.b+3] = true
         end
     end
 
-    vertex_indexing = Vector{Int64}{undef, length(V)}
+    vertex_indexing = Vector{Int64}(undef, length(boundary_vec))
     i = 0
-    for (j, b) in boundary_vec
-        vertex_indexing[j] = b ? 0 : (i += 1)
+    for (j, b) in enumerate(boundary_vec)
+        vertex_indexing[j] = (j <= 3 || b) ? 0 : (i += 1)
     end
 
     FEAMesh(tess, pslg, vertex_indexing)
@@ -54,41 +56,59 @@ end
 
 function integrateVert(mesh::FEAMesh{T}, v::Int64, f::Function, A, F) where T <: Point2
     pv = mesh.tess.verts[v]
-    start_tri_idx, curr_id = 0, 0
+    start_tri_idx = 0
+    println("looking for v = ", v)
     for (i, t) in enumerate(mesh.tess.faces)
         if t.active
-            id = _get_tri_vert_id(t)
+            id = _get_tri_vert_id(t, v)
             if id > 0
+                println("FOUND GOOD for ", v)
                 start_tri_idx = i
-                curr_id = id
+                #curr_id = id
+                break
             end
         end
     end
+    @assert start_tri_idx != 0
 
     load_val = 0.0
+    self_val = 0.0
     curr_tri_idx = start_tri_idx
     mat_idx = mesh.vertex_indexing[v]
 
     while true
         t = mesh.tess.faces[curr_tri_idx]
         pa, pb, pc = mesh.tess.verts[[t.a, t.b, t.c]]
-        
+        curr_id = _get_tri_vert_id(t, v)
+
         load_integrand = (x) -> begin
-            f(x) * barycentric(pa, pb, pc, x)[curr_id]
+            f(x) * barycentric2(pa, pb, pc, x)[curr_id]
         end
-        load_val += integratetri(pa, pb, pc, load_integrand)
+        load_contrib, err = integratetri(pa, pb, pc, load_integrand)
+        load_val += load_contrib
+
+        self_integrand = (x) -> begin
+            w = barycentric2(pa, pb, pc, x)[curr_id]
+            return w*w
+        end
+        self_contrib, err = integratetri(pa, pb, pc, self_integrand)
+        self_val += self_contrib
 
         opp_id = curr_id
-        for _ in 1:2
+        for _iter in 1:2
             opp_id = _next_vert_id_acw(opp_id)
+            W = barycentric(pa, pb, pc, Point2f0(0,0))
             strain_integrand = (x) -> begin
-                W = barycentric(pa, pb, pc)
+                W = barycentric2(pa, pb, pc, x)
                 W[curr_id] * W[opp_id]
             end
             opp_vidx       = _get_tri_vert_by_id(t, opp_id)
             opp_mat_idx    = mesh.vertex_indexing[opp_vidx]
-            strain_contrib = integratetri(pa, pb, pc, strain_integrand)
-            A[mat_idx, opp_mat_idx] += strain_contrib
+            (mat_idx < 20) && println(">>>>>[", _iter, "] ", mat_idx, " -> ", opp_mat_idx)
+            if opp_mat_idx > 0
+                strain_contrib, err = integratetri(pa, pb, pc, strain_integrand)
+                A[mat_idx, opp_mat_idx] += strain_contrib
+            end
         end
 
         next_tri_idx = 0
@@ -103,17 +123,25 @@ function integrateVert(mesh::FEAMesh{T}, v::Int64, f::Function, A, F) where T <:
         curr_tri_idx = next_tri_idx
     end
 
+    A[mat_idx, mat_idx] = self_val
     F[mat_idx] = load_val
 end
 
-function assemblePoisson(mesh::FEAMesh{T}) where T <: Point2
+function assemblePoisson(mesh::FEAMesh{T}, f::Function) where T <: Point2
 
     internal_verts   = filter(x -> x > 0, mesh.vertex_indexing)
     n_internal_verts = length(internal_verts)
     A    = spzeros(n_internal_verts, n_internal_verts)
     load = zeros(n_internal_verts)
 
-    for (vert_i, mat_i) in enumerate(internal_verts)
-        
+    for (vert_i, mat_i) in enumerate(mesh.vertex_indexing)
+        if mat_i > 0
+            integrateVert(mesh, vert_i, f, A, load)
+        end
     end
+
+    println(">>>> IS POS DEF? ", isposdef(A))
+    display(A)
+
+    return A, load
 end

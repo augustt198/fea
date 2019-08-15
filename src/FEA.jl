@@ -13,6 +13,9 @@ export DelaunayTess2D,
         conformingDelaunay2D
         integratetri,
         barycentric,
-        circumcenterwithradius
+        barycentric2,
+        circumcenterwithradius,
+        createFEAMesh,
+        assemblePoisson
 
 end

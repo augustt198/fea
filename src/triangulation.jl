@@ -350,9 +350,9 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
         end
     end
 
-    # means a triangle should be split but we only found one triangle
-    @assert t1 == 0
-    return (0, 0)
+    # TODO: consider handling case when we're supposed to find
+    # two triangles but one was find (need to ignore boundary?)
+    return (t1, 0, ret1, 0)
 end
 
 function _coordinate_bound(V::AbstractVector{T}) where T <: Point2

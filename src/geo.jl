@@ -127,6 +127,14 @@ function barycentric(A::T, B::T, C::T, P::T) where T <: Point2
     return M \ b
 end
 
+function barycentric2(a, b, c, x)
+    detT = (b[2] - c[2])*(a[1] - c[1]) + (c[1] - b[1])*(a[2] - c[2])
+    w1 = ( (b[2] - c[2])*(x[1] - c[1]) + (c[1] - b[1])*(x[2] - c[2]) ) / detT
+    w2 = ( (c[2] - a[2])*(x[1] - c[1]) + (a[1] - c[1])*(x[2] - c[2]) ) / detT
+    w3 = 1.0 - w1 - w2
+    return w1, w2, w3
+end
+
 # solves
 # a1_x + (a2_x - a1_x)*t = b1_x + (b2_x - b1_x)*s
 # a1_y + (a2_y - a1_y)*t = b1_y + (b2_y - b1_y)*s
