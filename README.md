@@ -6,4 +6,6 @@ Dependencies: Cubature, GeometryTypes, IterativeSolvers, Makie
 
 ### Images
 
-<img src="images/screenshot1.png" width="50%">
+Solving _Δu = -4_ on unit sphere with boundary condition _u = 0_.
+
+<img src="images/screenshot2.jpg" width="50%">
