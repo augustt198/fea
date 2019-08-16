@@ -135,21 +135,21 @@ function barycentric2(a, b, c, x)
 end
 
 # http://blog.marshalljiang.com/gradient-of-the-barycentric-coordinate-in-2d/
-function barycentric2_grad(a, b, c, x)
-    det_T = (b[2] - c[2])*(a[1] - c[1]) + (c[1] - b[1])*(a[2] - c[2])
+function barycentricgrad(a, b, c, x)
+    det_T = Float64( (b[2] - c[2])*(a[1] - c[1]) + (c[1] - b[1])*(a[2] - c[2]) )
     bc = c - b
-    ac = c - a
+    ca = a - c
     ab = b - a
     L_bc = sqrt(bc' * bc) # side lengths
-    L_ac = sqrt(ac' * ac)
+    L_ca = sqrt(ca' * ca)
     L_ab = sqrt(ab' * ab)
     bc_n = normalize([bc[2] ; -bc[1]]) # normals
-    ac_n = normalize([ac[2] ; -ac[1]])
+    ca_n = normalize([ca[2] ; -ca[1]])
     ab_n = normalize([ab[2] ; -ab[1]])
 
-    ∇λ₁ = -L_bc/(2*det_T) * bc_n
-    ∇λ₂ = -L_ac/(2*det_T) * ac_n
-    ∇λ₃ = -L_ab/(2*det_T) * ab_n
+    ∇λ₁ = -L_bc/(det_T) * bc_n
+    ∇λ₂ = -L_ca/(det_T) * ca_n
+    ∇λ₃ = -L_ab/(det_T) * ab_n
 
     return ∇λ₁, ∇λ₂, ∇λ₃
 end
