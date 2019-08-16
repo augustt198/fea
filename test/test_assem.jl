@@ -22,7 +22,7 @@ function test()
     segments = Vector{FEA.IndexedLineSegment}(undef, 0)
     for (idx, _) in enumerate(outer_circ)
         next_idx = (idx % length(outer_circ)) + 1
-        push!(segments, FEA.IndexedLineSegment(idx, next_idx, true))
+        push!(segments, FEA.IndexedLineSegment(idx, next_idx, 1))
     end
 
     pslg = FEA.PSLG(segments)
