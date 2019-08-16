@@ -26,12 +26,11 @@ end
 struct IndexedLineSegment
     a::Int64
     b::Int64
-    # whether this segment forms a boundary of a region
-    # or an internal feature
-    boundary::Bool
+    # which boundary this segment belongs to.
+    boundary::Int64
 end
 
-IndexedLineSegment(a, b) = IndexedLineSegment(a, b, false)
+IndexedLineSegment(a, b) = IndexedLineSegment(a, b, 1)
 
 function intriangle(tri::AbstractACWTriangle{T}, P::T) where T <: Point2
     return intriangle(tri.a, tri.b, tri.c, P)
@@ -157,6 +156,7 @@ function lineintersection(a1::T, a2::T, b1::T, b2::T) where T <: Point2
     return t, s, p
 end
 
+# TODO change
 function regioncrossings(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
     pt::T) where T <: Point2
 
@@ -179,6 +179,7 @@ function regioncrossings(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSeg
     return crossings
 end
 
+# TODO change
 # determines if pt is inside region with boundary dR by counting crossings
 function regiontestinside(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
     pt::T) where T <: Point2
