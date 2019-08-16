@@ -27,19 +27,20 @@ function test()
 
     pslg = FEA.PSLG(segments)
 
-    f = (x) -> -4.0
+    f = (x) -> 4.0
     f2 = (x) -> begin 
         x1 = x - [0.5 ; 0.5]
         dist1 = sum(x1 .* x1)
         x2 = x - [-0.5 ; -0.5]
         dist2 = sum(x2 .* x2)
-        return -exp(-10 * dist1) - exp(-10 * dist2) - 0.5
+        return -exp(-10 * dist1) - exp(-10 * dist2)
     end
     mesh = FEA.createFEAMesh(pts, pslg)
-    A, F = FEA.assemblePoisson(mesh, f2)
+    A, F = FEA.assemblePoisson(mesh, f)
 
     U = IterativeSolvers.cg(A, F)
     display(U)
+    println("max min ", maximum(U), " ", minimum(U))
 
     node_colors = Vector{Float64}(undef, length(mesh.tess.verts))
     for (i, val) in enumerate(U)

@@ -88,8 +88,16 @@ function integrateVert(mesh::FEAMesh{T}, v::Int64, f::Function, A, F) where T <:
         load_val += load_contrib
 
         self_integrand = (x) -> begin
-            w = barycentric2(pa, pb, pc, x)[curr_id]
-            return w*w
+            h = 0.0001
+            h_x, h_y = Float64[h ; 0], Float64[0 ; h]
+            w_0 = barycentric2(pa, pb, pc, x)[curr_id]
+            w_1 = barycentric2(pa, pb, pc, x+h_x)[curr_id]
+            w_2 = barycentric2(pa, pb, pc, x+h_y)[curr_id]
+
+            w_x = (w_1 - w_0) / h
+            w_y = (w_2 - w_0) / h
+
+            return w_x*w_x + w_y*w_y
         end
         self_contrib, err = integratetri(pa, pb, pc, self_integrand)
         self_val += self_contrib
@@ -99,8 +107,18 @@ function integrateVert(mesh::FEAMesh{T}, v::Int64, f::Function, A, F) where T <:
             opp_id = _next_vert_id_acw(opp_id)
             W = barycentric(pa, pb, pc, Point2f0(0,0))
             strain_integrand = (x) -> begin
-                W = barycentric2(pa, pb, pc, x)
-                W[curr_id] * W[opp_id]
+                h = 0.0001
+                h_x, h_y = Float64[h ; 0], Float64[0 ; h]
+                W_0 = barycentric2(pa, pb, pc, x)
+                W_1 = barycentric2(pa, pb, pc, x+h_x)
+                W_2 = barycentric2(pa, pb, pc, x+h_y)
+
+                W_x_curr = (W_1[curr_id] - W_0[curr_id])/h
+                W_y_curr = (W_2[curr_id] - W_0[curr_id])/h
+                W_x_opp  = (W_1[opp_id]  - W_0[opp_id] )/h
+                W_y_opp  = (W_2[opp_id]  - W_0[opp_id] )/h
+
+                return W_x_curr*W_x_opp + W_y_curr*W_y_opp
             end
             opp_vidx       = _get_tri_vert_by_id(t, opp_id)
             opp_mat_idx    = mesh.vertex_indexing[opp_vidx]
