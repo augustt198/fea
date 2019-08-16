@@ -54,8 +54,19 @@ function test()
         node_colors[node_index] = val
     end
 
-    plottess(mesh.tess, false, node_colors)
-    #heatmap(Matrix(A))
+    p1 = plottess(mesh.tess, false, node_colors)
+    scene = vbox(
+        p1,
+        colorlegend(
+            p1[end-1],            # get Plot object from Scene
+            camera = campixel!, # let vbox decide scene limits
+            raw = true,          # no axes, other things as well
+            width = (            # make the colorlegend longer so it looks nicer
+                30,              # the width
+                540              # the height
+            )
+        )
+    )
 end
 
 test()
