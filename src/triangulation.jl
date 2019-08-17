@@ -451,3 +451,15 @@ function _insert_segment(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where
     _insert_segment(tess, seg1)
     _insert_segment(tess, seg2)
 end
+
+function deactivate_external(tess::DelaunayTess2D{T}, pslg::PSLG) where T <: Point2
+    for t in tess.faces
+        if t.active
+            v = sum(tess.verts[[t.a, t.b, t.c]]) / 3 
+            r = findregion(tess.verts, pslg.segments, v)
+            if r == 0
+                t.active = false
+            end
+        end
+    end
+end

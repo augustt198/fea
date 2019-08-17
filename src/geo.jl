@@ -177,26 +177,36 @@ function lineintersection(a1::T, a2::T, b1::T, b2::T) where T <: Point2
 end
 
 # TODO change
-function regioncrossings(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
-    pt::T) where T <: Point2
+function findregion(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
+    pt::T, nregions=0) where T <: Point2
 
     pt_proj = pt + T(1, 0)
 
-    crossings = 0
+    crossings = Vector{Int64}(undef, nregions)
+    crossings .= 0
     for seg in dR
-        if seg.boundary
-            pa, pb = V[seg.a], V[seg.b]
-            l1, l2, _ = lineintersection(pa, pb, pt, pt_proj)
+        pa, pb = V[seg.a+3], V[seg.b+3]
+        l1, l2, _ = lineintersection(pa, pb, pt, pt_proj)
 
-            # need to be careful about the projected line
-            # crossing through a vertex in dR
-            if 0 <= l1 < 1 && l2 >= 0
-                crossings += 1
+        # need to be careful about the projected line
+        # crossing through a vertex in dR
+        if 0 <= l1 < 1 && l2 >= 0
+            if seg.boundary > length(crossings)
+                s = length(crossings)
+                resize!(crossings, seg.boundary)
+                crossings[s+1:end] .= 0
             end
+            crossings[seg.boundary] += 1
         end
     end
 
-    return crossings
+    for b in length(crossings):-1:1
+        c = crossings[b]
+        if c > 0 && isodd(c)
+            return b
+        end
+    end
+    return 0
 end
 
 # TODO change
@@ -221,6 +231,7 @@ function circumcenterwithradius(a::T, b::T, c::T) where T <: Point2
     vec_e_normal = [vec_ac[2] ; -vec_ac[1]]
 
     l1, l2, o = lineintersection(d, d + vec_d_normal, e, e + vec_e_normal)
-    R = sqrt(sum((o - a) .^ 2))
+    ao = o - a
+    R = sqrt(ao' * ao)
     return o, R
 end

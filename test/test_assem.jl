@@ -25,6 +25,13 @@ function test()
         push!(segments, FEA.IndexedLineSegment(idx, next_idx, 1))
     end
 
+    for (idx0, _) in enumerate(outer_circ)
+        idx = idx0 + length(outer_circ) + 1
+        next_idx0 = (idx0 % length(outer_circ)) + 1
+        next_idx = next_idx0 + length(outer_circ) + 1
+        push!(segments, FEA.IndexedLineSegment(idx, next_idx, 1))
+    end
+
     pslg = FEA.PSLG(segments)
 
     f = (x) -> 4.0
@@ -37,6 +44,7 @@ function test()
     end
     mesh = FEA.createFEAMesh(pts, pslg)
     A, F = FEA.assemblePoisson(mesh, f)
+    FEA.deactivate_external(mesh.tess, mesh.pslg)
 
     U = IterativeSolvers.cg(A, F)
     display(U)

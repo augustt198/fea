@@ -12,7 +12,6 @@ function createFEAMesh(V::AbstractVector{T}, pslg::PSLG) where T <: Point2
     tess = conformingDelaunay2D(V, pslg)
 
     boundary_vec = Vector{Bool}(undef, length(tess.verts))
-    println("+++++++++++++ ", length(boundary_vec))
     boundary_vec .= false
     for seg in pslg.segments
         if seg.boundary == 1
@@ -57,14 +56,11 @@ end
 function integrateVert(mesh::FEAMesh{T}, v::Int64, f::Function, A, F) where T <: Point2
     pv = mesh.tess.verts[v]
     start_tri_idx = 0
-    println("looking for v = ", v)
     for (i, t) in enumerate(mesh.tess.faces)
         if t.active
             id = _get_tri_vert_id(t, v)
             if id > 0
-                println("FOUND GOOD for ", v)
                 start_tri_idx = i
-                #curr_id = id
                 break
             end
         end
@@ -103,7 +99,6 @@ function integrateVert(mesh::FEAMesh{T}, v::Int64, f::Function, A, F) where T <:
             end
             opp_vidx       = _get_tri_vert_by_id(t, opp_id)
             opp_mat_idx    = mesh.vertex_indexing[opp_vidx]
-            (mat_idx < 20) && println(">>>>>[", _iter, "] ", mat_idx, " -> ", opp_mat_idx)
             if opp_mat_idx > 0
                 strain_contrib, err = integratetri(pa, pb, pc, strain_integrand)
                 A[mat_idx, opp_mat_idx] += strain_contrib
