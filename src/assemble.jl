@@ -93,15 +93,15 @@ function integrateVert(mesh::FEAMesh{T}, v::Int64, f::Function, A, F) where T <:
         opp_id = curr_id
         for _iter in 1:2
             opp_id = _next_vert_id_acw(opp_id)
-            strain_integrand = (x) -> begin
+            stiffness_integrand = (x) -> begin
                 ∇W = barycentricgrad(pa, pb, pc, x)
                 return  ∇W[curr_id]' * ∇W[opp_id]
             end
             opp_vidx       = _get_tri_vert_by_id(t, opp_id)
             opp_mat_idx    = mesh.vertex_indexing[opp_vidx]
             if opp_mat_idx > 0
-                strain_contrib, err = integratetri(pa, pb, pc, strain_integrand)
-                A[mat_idx, opp_mat_idx] += strain_contrib
+                stiffness_contrib, err = integratetri(pa, pb, pc, stiffness_integrand)
+                A[mat_idx, opp_mat_idx] += stiffness_contrib
             end
         end
 
