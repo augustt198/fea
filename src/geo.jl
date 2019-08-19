@@ -97,11 +97,11 @@ function isquadconvex(a::T, b::T, c::T, d::T) where T <: Point2
 
     sgn = sign(sum(vec_ab_P .*  vec_bc))
 
-    if sign(sum(vec_bc_P .* vec_cd)) != sgn
+    if sign(vec_bc_P' * vec_cd) != sgn
         return false
-    elseif sign(sum(vec_cd_P .* vec_da)) != sgn
+    elseif sign(vec_cd_P' * vec_da) != sgn
         return false
-    elseif sign(sum(vec_da_P .* vec_ab)) != sgn
+    elseif sign(vec_da_P' * vec_ab) != sgn
         return false
     else
         return true
