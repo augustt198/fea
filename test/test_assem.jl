@@ -51,15 +51,11 @@ function test()
     println("max min ", maximum(U), " ", minimum(U))
 
     node_colors = Vector{Float64}(undef, length(mesh.tess.verts))
-    for (i, val) in enumerate(U)
-        node_index = 0
-        for (n_idx, m_idx) in enumerate(mesh.vertex_indexing)
-            if m_idx == i
-                node_index = n_idx
-            end
-        end
 
-        node_colors[node_index] = val
+    for (n_idx, m_idx) in enumerate(mesh.vertex_indexing)
+        if m_idx > 0
+            node_colors[n_idx] = U[m_idx]
+        end
     end
 
     p1 = plottess(mesh.tess, false, node_colors)
