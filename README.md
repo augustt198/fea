@@ -6,6 +6,7 @@ Dependencies: Cubature, GeometryTypes, IterativeSolvers, Makie
 
 ### Images
 
-Solving _Δu = -4_ on unit circle with boundary condition _u = 0_.
+Solving Δ<i>u</i> = 0 with <i>u</i> = 1 solution on left/right circles, <i>u</i> = –1
+solution on top/bottom circles, and zero flux condition on all other boundaries.
 
-<img src="images/screenshot2.jpg" width="50%">
+<img src="images/screenshot3.jpg" width="50%">
