@@ -49,6 +49,7 @@ function intriangle(A::T, B::T, C::T, P::T) where T <: Point2
     # TODO don't hardcode Float32
     t0        = zero(Float32)
     epsilon   = eps(Float32)
+    epsilon   = 1e-5
     a_bp_zero = isapprox(a_bp, t0, atol=epsilon)
     c_ap_zero = isapprox(c_ap, t0, atol=epsilon)
     b_cp_zero = isapprox(b_cp, t0, atol=epsilon)
@@ -178,7 +179,7 @@ end
 
 # TODO change
 function findregion(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
-    pt::T, nregions=0) where T <: Point2
+    pt::T, off=3, nregions=0) where T <: Point2
 
     pt_proj = pt + T(1, 0)
 
@@ -186,7 +187,7 @@ function findregion(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment}
     crossings .= 0
     for seg in dR
         # TODO make indexing more elegant
-        pa, pb = V[seg.a+3], V[seg.b+3]
+        pa, pb = V[seg.a+off], V[seg.b+off]
         l1, l2, _ = lineintersection(pa, pb, pt, pt_proj)
 
         # need to be careful about the projected line
