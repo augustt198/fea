@@ -95,7 +95,7 @@ function isquadconvex(a::T, b::T, c::T, d::T) where T <: Point2
     vec_cd = d - c ; vec_cd_P = Point2(-vec_cd[2], vec_cd[1])
     vec_da = a - d ; vec_da_P = Point2(-vec_da[2], vec_da[1])
 
-    sgn = sign(sum(vec_ab_P .*  vec_bc))
+    sgn = sign(vec_ab_P' *  vec_bc)
 
     if sign(vec_bc_P' * vec_cd) != sgn
         return false
@@ -128,10 +128,10 @@ end
 
 function barycentric2(a, b, c, x)
     detT = (b[2] - c[2])*(a[1] - c[1]) + (c[1] - b[1])*(a[2] - c[2])
-    w1 = ( (b[2] - c[2])*(x[1] - c[1]) + (c[1] - b[1])*(x[2] - c[2]) ) / detT
-    w2 = ( (c[2] - a[2])*(x[1] - c[1]) + (a[1] - c[1])*(x[2] - c[2]) ) / detT
-    w3 = 1.0 - w1 - w2
-    return w1, w2, w3
+    w₁ = ( (b[2] - c[2])*(x[1] - c[1]) + (c[1] - b[1])*(x[2] - c[2]) ) / detT
+    w₂ = ( (c[2] - a[2])*(x[1] - c[1]) + (a[1] - c[1])*(x[2] - c[2]) ) / detT
+    w₃ = 1.0 - w₁ - w₂
+    return w₁, w₂, w₃
 end
 
 # http://blog.marshalljiang.com/gradient-of-the-barycentric-coordinate-in-2d/
@@ -147,11 +147,11 @@ function barycentricgrad(a, b, c, x)
     ca_n = normalize([ca[2] ; -ca[1]])
     ab_n = normalize([ab[2] ; -ab[1]])
 
-    ∇λ₁ = -L_bc/(det_T) * bc_n
-    ∇λ₂ = -L_ca/(det_T) * ca_n
-    ∇λ₃ = -L_ab/(det_T) * ab_n
+    ∇w₁ = -L_bc/(det_T) * bc_n
+    ∇w₂ = -L_ca/(det_T) * ca_n
+    ∇w₃ = -L_ab/(det_T) * ab_n
 
-    return ∇λ₁, ∇λ₂, ∇λ₃
+    return ∇w₁, ∇w₂, ∇w₃
 end
 
 # solves
@@ -185,6 +185,7 @@ function findregion(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment}
     crossings = Vector{Int64}(undef, nregions)
     crossings .= 0
     for seg in dR
+        # TODO make indexing more elegant
         pa, pb = V[seg.a+3], V[seg.b+3]
         l1, l2, _ = lineintersection(pa, pb, pt, pt_proj)
 
