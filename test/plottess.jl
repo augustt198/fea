@@ -3,7 +3,7 @@ using FEA
 
 using Makie
 
-function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false, ncolors=[]) where T <: Point2
+function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false, colors=nothing) where T <: Point2
     vertices_x     = map(v -> v[1], tess.verts)
     vertices_y     = map(v -> v[2], tess.verts)
     vertices       = hcat(vertices_x, vertices_y)
@@ -12,7 +12,6 @@ function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false, ncolo
     connectivity_b = map(t -> t.b, faces_active)
     connectivity_c = map(t -> t.c, faces_active)
     connectivity   = hcat(connectivity_a, connectivity_b, connectivity_c)
-    color          = sin.(collect(1:length(tess.verts)) / 50.0f0)
 
     # hide extreme points
     vertices[1:3, :]  .= vertices[4:4, :]
@@ -32,8 +31,12 @@ function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false, ncolo
         poly!(scene, circles, color=(:white, 0.0), strokecolor=:red, strokewidth=3)
     end
 
-    scatter!(scene, vertices, color=:black, markersize=0.025)
-    mesh!(scene, vertices, connectivity, color=ncolors, shading=false, colormap=:plasma)
+    if colors === nothing
+        colors = sin.(collect(1:length(tess.verts)) / 50.0f0)
+    end
+
+    scatter!(scene, vertices, color=:black, markersize=0.0125)
+    mesh!(scene, vertices, connectivity, color=colors, shading=false, colormap=:plasma)
     cam = cam2d!(scene, panbutton=Mouse.left)
     wireframe!(scene[end][1], color=(:black, 0.6), linewidth=2)
     return scene
