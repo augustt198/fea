@@ -369,10 +369,11 @@ function conformingDelaunay2D(V::AbstractVector{T}, pslg::PSLG) where T <: Point
     tess = delaunay2D(V)
 
     for seg in pslg.segments
-        if !_edge_in_tess(tess, seg)
+        seg_offset_idx = IndexedLineSegment(seg.a+3, seg.b+3)
+
+        if !_edge_in_tess(tess, seg_offset_idx)
             println("Segment ", seg, " not in tess")
             # to adjust for added triangle
-            seg_offset_idx = IndexedLineSegment(seg.a+3, seg.b+3)
             _insert_segment(tess, seg_offset_idx)
         end
     end
@@ -382,7 +383,7 @@ end
 
 function _edge_in_tess(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where T <: Point2
     for t in tess.faces
-        if !t.active && _edge_in_tri(t, seg)
+        if t.active && _edge_in_tri(t, seg)
             return true
         end
     end
