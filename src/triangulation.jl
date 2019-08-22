@@ -20,9 +20,17 @@ struct TriEdge
     nbr::Int64
 end
 
+mutable struct TriHierarchyNode
+    parent::Union{Nothing, Ref{TriHierarchyNode}}
+    face::Int64
+    children::AbstractVector{Ref{TriHierarchyNode}}
+end
+
 mutable struct DelaunayTess2D{T<:Point2}
     verts::AbstractVector{T}
     faces::AbstractVector{DelaunayTriangle}
+    rootnode::TriHierarchyNode
+    nodelookup::AbstractVector{Ref{TriHierarchyNode}}
 end
 
 struct PSLG
@@ -35,10 +43,15 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     # base triangle large enough to enclose all points in V
     v₁ = T(0,        4*maxc)
     v₂ = T(-4*maxc, -4*maxc)
-    v₃ = T(4*maxc,   -4*maxc)
+    v₃ = T(4*maxc,  -4*maxc)
     V = vcat([v₁, v₂, v₃], V)
     base_tri = DelaunayTriangle(1, 2, 3, 0, 0, 0, true)
-    tess = DelaunayTess2D(V, [base_tri])
+
+    root = TriHierarchyNode(nothing, 1, [])
+    lookup = Vector{Ref{TriHierarchyNode}}(undef, 0)
+    push!(lookup, Ref(root))
+
+    tess = DelaunayTess2D(V, [base_tri], root, lookup)
 
     for i in 4:length(tess.verts)
         _insert_point(tess, i)
@@ -51,11 +64,18 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
 end
 
 function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
+    println(">> ", length(tess.faces))
     vert = tess.verts[vidx]
     i1, i2, ret1, ret2 = _find_tri_idx(tess, vert)
+    results = _find_tri_fast(tess, vert)
 
-    if ret1 == 0 # interior
-        i = i1
+    println("finding pt: ", vert)
+    println("was found as: ", i1, " ", tess.faces[i1])
+    println("retval: ", ret1)
+
+    if length(results) == 1 # interior
+        parent, ret = results[1]
+        i = parent.face
         t = tess.faces[i]
         # division diagram of t -> t1, t2, t3:
         #        a
@@ -76,6 +96,16 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
         push!(tess.faces, t₂)
         push!(tess.faces, t₃)
         t.active = false
+
+        node₁ = TriHierarchyNode(Ref(parent), base_idx+0, [])
+        node₂ = TriHierarchyNode(Ref(parent), base_idx+1, [])
+        node₃ = TriHierarchyNode(Ref(parent), base_idx+2, [])
+        push!(parent.children, Ref(node₁))
+        push!(parent.children, Ref(node₂))
+        push!(parent.children, Ref(node₃))
+        push!(tess.nodelookup, Ref(node₁))
+        push!(tess.nodelookup, Ref(node₂))
+        push!(tess.nodelookup, Ref(node₃))
         
         (t.nc > 0) && _update_neighbor(tess.faces[t.nc], i, base_idx + 0)
         (t.nb > 0) && _update_neighbor(tess.faces[t.nb], i, base_idx + 1)
@@ -88,10 +118,8 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
         ]
         _flip(tess, edges)
         
-        if !_check_nbr(tess)
-            #break
-        end 
-    elseif ret1 > 0 # on edge
+        #_check_nbr(tess)
+    elseif length(results) == 2 # on edge
         #        + s
         #       /|\
         #      / | \
@@ -100,8 +128,10 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
         #   +----+----+
         #  q    vert   r
         edges = Vector{TriEdge}()
-        for (i, ret) in zip([i1, i2], [ret1, ret2])
+        for (parent, ret) in results
+            println("^^ PARENT ", parent.face)
             base_idx = length(tess.faces) + 1
+            i = parent.face
             t = tess.faces[i]
             if ret == TRI_NEIGHBOR_A
                 s, q, r = t.a, t.b, t.c
@@ -119,6 +149,14 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
             (nq > 0) && _update_neighbor(tess.faces[nq], i, base_idx+1)
             push!(tess.faces, t₁)
             push!(tess.faces, t₂)
+
+            node₁ = TriHierarchyNode(Ref(parent), base_idx+0, [])
+            node₂ = TriHierarchyNode(Ref(parent), base_idx+1, [])
+            push!(parent.children, Ref(node₁))
+            push!(parent.children, Ref(node₂))
+            push!(tess.nodelookup, Ref(node₁))
+            push!(tess.nodelookup, Ref(node₂))
+
             push!(edges, TriEdge(base_idx+0, TRI_NEIGHBOR_C))
             push!(edges, TriEdge(base_idx+1, TRI_NEIGHBOR_B))
             t.active = false
@@ -131,9 +169,23 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
 
         _flip(tess, edges)
 
-        if !_check_nbr(tess)
-            #break
-        end
+        #_check_nbr(tess)
+    else
+        println("da thing ", length(results))
+        _print_parents(tess, tess.nodelookup[i1][])
+        @assert false
+    end
+end
+
+function _print_parents(tess::DelaunayTess2D{T}, node::TriHierarchyNode, lvl=0) where T <: Point2
+    t = tess.faces[node.face]
+    a, b, c = tess.verts[[t.a, t.b, t.c]]
+    map(_ -> print(" "), 1:lvl*2)
+    print(node.face, "] ")
+    println("($(a[1]), $(a[2])), ($(b[1]), $(b[2])), ($(c[1]), $(c[2]))")
+
+    if node.parent != nothing
+        _print_parents(tess, node.parent[], lvl+1)
     end
 end
 
@@ -201,14 +253,8 @@ function _flip(tess::DelaunayTess2D{T}, queue_init::Vector{TriEdge}) where T <: 
     seen::Set{TriEdge} = Set()
     queue::Vector{TriEdge} = queue_init
 
-    # init queue
-    for offset in 0:2
-        idx = length(tess.faces) - offset
-        t = tess.faces[idx]
-        push!(queue, TriEdge(idx, TRI_NEIGHBOR_C))
-    end 
-
     while length(queue) > 0
+        println("FLIP QUEUE ", queue)
         edge = pop!(queue)
         it = edge.tri_idx; nbr = edge.nbr
         t = tess.faces[it]
@@ -289,6 +335,7 @@ function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle,
         nY_a = n.na
         t_idx = n.nb
     end
+    t_idx = length(tess.faces) + 1
 
     u = t.c
     nX_b = t.nb
@@ -305,6 +352,14 @@ function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle,
         nY_b = t.nc
         n_idx = t.nb
     end
+    n_idx = length(tess.faces) + 2
+
+    t = DelaunayTriangle(0, 0, 0)
+    n = DelaunayTriangle(0, 0, 0)
+    t.active = true
+    n.active = true
+    push!(tess.faces, t)
+    push!(tess.faces, n)
 
     # t becomes ta, n becomes tb
     t.a = v ; t.b = X ; t.c = u
@@ -313,8 +368,41 @@ function _flip_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle,
     n.a = u ; n.b = Y ; n.c = v
     n.na = nX_a ; n.nb = t_idx ; n.nc = nX_b
 
-    (t.nc > 0) && _update_neighbor(tess.faces[t.nc], in, it)
-    (n.nc > 0) && _update_neighbor(tess.faces[n.nc], it, in)
+    tess.faces[it].active = false
+    tess.faces[in].active = false
+
+    println("> &&& ", tess.faces[it])
+    println("> &&& ", tess.faces[in])
+    println("> %%% ", tess.faces[t_idx])
+    println("> %%% ", tess.faces[n_idx])
+
+    (t.na > 0) && _update_neighbor(tess.faces[t.na], it, t_idx)
+    (t.nc > 0) && _update_neighbor(tess.faces[t.nc], in, t_idx)
+    (n.na > 0) && _update_neighbor(tess.faces[n.na], it, n_idx)
+    (n.nc > 0) && _update_neighbor(tess.faces[n.nc], in, n_idx)
+
+    node_t = tess.nodelookup[it][]
+    node_n = tess.nodelookup[in][]
+    node₁ = TriHierarchyNode(nothing, t_idx, [])
+    node₂ = TriHierarchyNode(nothing, n_idx, [])
+    push!(node_t.children, node₁)
+    push!(node_t.children, node₂)
+    push!(node_n.children, node₁)
+    push!(node_n.children, node₂)
+    println("------- ", node_t.face)
+    println("------- ", node_n.face)
+    println("))))))) ", node₁.face)
+    println("))))))) ", node₂.face)
+
+    push!(tess.nodelookup, node₁)
+    push!(tess.nodelookup, node₂)
+
+    #node_t_parent = node_t.parent[]
+    #node_n_parent = node_n.parent[]
+    #push!(node_t_parent.children, Ref(node_n))
+    #push!(node_n_parent.children, Ref(node_t))
+    #println("switcheroo: ", it, " ", in, " [", node_t_parent.face, " ", node_n_parent.face, "]")
+    #println("duble check ", node_t.face, " ", node_n.face)
 
     # new edges that are not incident to `u` need to be checked
     return (TriEdge(t_idx, TRI_NEIGHBOR_C), TriEdge(n_idx, TRI_NEIGHBOR_A))
@@ -353,6 +441,42 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
     # TODO: consider handling case when we're supposed to find
     # two triangles but one was find (need to ignore boundary?)
     return (t1, 0, ret1, 0)
+end
+
+function _find_tri_fast(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
+    results = []
+    _find_tri_fast_recur(tess, pt, tess.rootnode, results, 0)
+    println(">> RES len ", length(results))
+    return results
+end
+
+function _find_tri_fast_recur(tess::DelaunayTess2D{T}, pt::T,
+    node::TriHierarchyNode, results, lvl) where T <: Point2
+
+    map(_ -> print(" "), 1:lvl*2)
+    print(node.face, "] ")
+    #println("-> ", lvl)
+    tri = tess.faces[node.face]
+    a, b, c = tess.verts[[tri.a, tri.b, tri.c]]
+    ret = intriangle(a, b, c, pt)
+    if ret >= 0 || lvl > 0
+        println("($(a[1]), $(a[2])), ($(b[1]), $(b[2])), ($(c[1]), $(c[2])) / $ret / $(length(node.children)) / $(tri.active)")
+    end
+    if ret >= 0
+        if tri.active
+            exists = any(x -> (x[1].face == node.face), results)
+            if !exists
+                push!(results, (node, ret))
+                map(_ -> print(" "), 1:lvl*2)
+                print(node.face, "] ")
+                println("found active tri !")
+            end
+        else
+            for ref_node in node.children
+                _find_tri_fast_recur(tess, pt, ref_node[], results, lvl+1)
+            end
+        end
+    end
 end
 
 function _coordinate_bound(V::AbstractVector{T}) where T <: Point2
@@ -402,13 +526,13 @@ function _edge_in_tri(tri::DelaunayTriangle, seg::IndexedLineSegment) where T <:
     return false
 end
 
-# FIX: use indexed vertices
 function _insert_segment(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where T <: Point2
 
     pa, pb = tess.verts[[seg.a, seg.b]]
     pc = (pa + pb)/2 # midpoint
 
     i1, i2, ret1, ret2 = _find_tri_idx(tess, pc)
+    (i1 == 0) && return
     @assert i1 != 0
 
     t = tess.faces[i1]
