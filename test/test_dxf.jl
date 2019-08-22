@@ -58,7 +58,8 @@ function create_pslg(fname)
 end
 
 function test()
-    vertices, segments = create_pslg("/Users/August/Documents/cad/6A01/rotor_hub.dxf")
+    #vertices, segments = create_pslg("/Users/August/Documents/cad/6A01/rotor_hub.dxf")
+    vertices, segments = create_pslg("/Users/August/Documents/cad/side1_thing.dxf")
 
     k = (x) -> 1.0
     materials = FEA.MaterialFunctionsList([k, k])
@@ -67,23 +68,23 @@ function test()
     max_y = maximum(map((x) -> x[2], vertices))
     min_y = minimum(map((x) -> x[2], vertices))
     for v in vertices
-        dist = sqrt(v' * v)
-        if dist > 0.4
-            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, 0.0)
-        elseif abs(v[1]) > 0.1
+        #dist = sqrt(v' * v)
+        #if dist > 0.4
+        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, 0.0)
+        #elseif abs(v[1]) > 0.1
+        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 1.0)
+        #elseif abs(v[2]) > 0.1
+        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, -1.0)
+        #else
+        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, 0.0)
+        #end
+        if v[2] == max_y
             bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 1.0)
-        elseif abs(v[2]) > 0.1
+        elseif v[2] == min_y
             bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, -1.0)
         else
             bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, 0.0)
         end
-        #if v[2] == max_y
-        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 0.0)
-        #elseif v[2] == min_y
-        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 0.0)
-        #else
-        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 0.0)
-        #end
         push!(bdconds, bd)
     end
 
@@ -108,7 +109,7 @@ function test()
 
     f = (x) -> 1.0
 
-    tess = conformingDelaunay2D(vertices, pslg)
+    #tess = conformingDelaunay2D(vertices, pslg)
     mesh = FEA.createFEAMesh(vertices, pslg, bdconds, materials)
     A, F = FEA.assemblePoisson(mesh, f)
     FEA.deactivate_external(mesh.tess, mesh.pslg)
