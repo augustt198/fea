@@ -23,6 +23,7 @@ end
 mutable struct DelaunayTess2D{T<:Point2}
     verts::AbstractVector{T}
     faces::AbstractVector{DelaunayTriangle}
+    last_tri_idx::Int64
 end
 
 struct PSLG
@@ -38,7 +39,7 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     v₃ = T(4*maxc,   -4*maxc)
     V = vcat([v₁, v₂, v₃], V)
     base_tri = DelaunayTriangle(1, 2, 3, 0, 0, 0, true)
-    tess = DelaunayTess2D(V, [base_tri])
+    tess = DelaunayTess2D(V, [base_tri], 1)
 
     for i in 4:length(tess.verts)
         _insert_point(tess, i)
@@ -52,7 +53,7 @@ end
 
 function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
     vert = tess.verts[vidx]
-    i1, i2, ret1, ret2 = _find_tri_idx(tess, vert)
+    i1, i2, ret1, ret2 = _find_tri_idx_fast(tess, vert)
 
     if ret1 == 0 # interior
         i = i1
@@ -197,16 +198,8 @@ function _check_nbr(tess::DelaunayTess2D{T}) where T <: Point2
 end
 
 # Lawson flip algorithm
-function _flip(tess::DelaunayTess2D{T}, queue_init::Vector{TriEdge}) where T <: Point2
+function _flip(tess::DelaunayTess2D{T}, queue::Vector{TriEdge}) where T <: Point2
     seen::Set{TriEdge} = Set()
-    queue::Vector{TriEdge} = queue_init
-
-    # init queue
-    for offset in 0:2
-        idx = length(tess.faces) - offset
-        t = tess.faces[idx]
-        push!(queue, TriEdge(idx, TRI_NEIGHBOR_C))
-    end 
 
     while length(queue) > 0
         edge = pop!(queue)
@@ -355,6 +348,44 @@ function _find_tri_idx(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
     return (t1, 0, ret1, 0)
 end
 
+function _find_tri_idx_fast(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
+    idx = tess.last_tri_idx
+    while true
+        t = tess.faces[idx]
+        if !t.active
+            idx = length(tess.faces)
+            t = tess.faces[idx]
+        end
+        
+        a, b, c = tess.verts[[t.a, t.b, t.c]]
+        ret = intriangle(a, b, c, pt)
+        if ret == -TRI_NEIGHBOR_A
+            idx = t.na
+        elseif ret == -TRI_NEIGHBOR_B
+            idx = t.nb
+        elseif ret == -TRI_NEIGHBOR_C
+            idx = t.nc
+        elseif ret == 0
+            tess.last_tri_idx = idx
+            return (idx, 0, ret, 0)
+        else
+            if ret == TRI_NEIGHBOR_A
+                idx2 = t.na
+            elseif ret == TRI_NEIGHBOR_B
+                idx2 = t.nb
+            else
+                idx2 = t.nc
+            end
+            t2 = tess.faces[idx2]
+            a2, b2, c2 = tess.verts[[t2.a, t2.b, t2.c]]
+            ret2 = intriangle(a2, b2, c2, pt)
+
+            tess.last_tri_idx = idx
+            return (idx, idx2, ret, ret2)
+        end
+    end
+end
+
 function _coordinate_bound(V::AbstractVector{T}) where T <: Point2
     maxcoord = -Inf
     for v in V
@@ -402,7 +433,6 @@ function _edge_in_tri(tri::DelaunayTriangle, seg::IndexedLineSegment) where T <:
     return false
 end
 
-# FIX: use indexed vertices
 function _insert_segment(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where T <: Point2
 
     pa, pb = tess.verts[[seg.a, seg.b]]

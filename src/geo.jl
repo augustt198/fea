@@ -43,16 +43,15 @@ function intriangle(A::T, B::T, C::T, P::T) where T <: Point2
     a    = C-B; b = A-C; c = B-A
     ap   = P-A; bp = P-B; cp = P-C
     a_bp = a[1]*bp[2] - a[2]*bp[1];
-    c_ap = c[1]*ap[2] - c[2]*ap[1];
     b_cp = b[1]*cp[2] - b[2]*cp[1];
+    c_ap = c[1]*ap[2] - c[2]*ap[1];
 
     # TODO don't hardcode Float32
     t0        = zero(Float32)
-    epsilon   = eps(Float32)
-    epsilon   = 1e-5
+    epsilon   = 1e-5 # eps(Float32)
     a_bp_zero = isapprox(a_bp, t0, atol=epsilon)
-    c_ap_zero = isapprox(c_ap, t0, atol=epsilon)
     b_cp_zero = isapprox(b_cp, t0, atol=epsilon)
+    c_ap_zero = isapprox(c_ap, t0, atol=epsilon)
 
     if (a_bp >= t0 || a_bp_zero) && (b_cp >= t0 || b_cp_zero) && (c_ap >= t0 || c_ap_zero)
         if a_bp_zero
@@ -65,7 +64,13 @@ function intriangle(A::T, B::T, C::T, P::T) where T <: Point2
             return 0
         end
     else
-        return -1
+        if a_bp < 0
+            return -TRI_NEIGHBOR_A
+        elseif b_cp < 0
+            return -TRI_NEIGHBOR_B
+        else
+            return -TRI_NEIGHBOR_C
+        end
     end
 end
 
