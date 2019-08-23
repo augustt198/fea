@@ -18,13 +18,13 @@ function create_pslg(fname)
     region_start_idx = nothing
     last_end  = nothing
     region_id = 0
-    vertices  = Vector{Point2f0}(undef, 0)
+    vertices  = Vector{Point2{Float64}}(undef, 0)
     segments  = Vector{FEA.IndexedLineSegment}(undef, 0)
     for e in drawing.entities
         if e.dxftype() == "LINE"
             if e.dxf.start != last_end
                 region_id += 1
-                push!(vertices, Point2f0(e.dxf.start))
+                push!(vertices, Point2{Float64}(e.dxf.start))
                 region_start_pt = e.dxf.start
                 region_start_idx = length(vertices)
             end
@@ -33,7 +33,7 @@ function create_pslg(fname)
             if e.dxf.end == region_start_pt
                 end_idx = region_start_idx
             else
-                push!(vertices, Point2f0(e.dxf.end))
+                push!(vertices, Point2{Float64}(e.dxf.end))
                 end_idx = length(vertices)
             end
             seg = FEA.IndexedLineSegment(start_idx, end_idx, region_id)
@@ -59,7 +59,8 @@ end
 
 function test()
     #vertices, segments = create_pslg("/Users/August/Documents/cad/6A01/rotor_hub.dxf")
-    vertices, segments = create_pslg("/Users/August/Documents/cad/side1_thing.dxf")
+    #vertices, segments = create_pslg("/Users/August/Documents/cad/side1_thing.dxf")
+    vertices, segments = create_pslg("/Users/August/Documents/cad/crane/dxf/support_1.dxf")
 
     k = (x) -> 1.0
     materials = FEA.MaterialFunctionsList([k, k])
@@ -98,8 +99,8 @@ function test()
     segments = map(mapfn, segments)
 
     #Random.seed!(4)
-    for i in 1:1000
-        pt = Point2f0(rand(2)) * 2 - 1
+    for i in 1:0
+        pt = Point2{Float64}(rand(2)) * 2 - 1
         if FEA.findregion(vertices, segments, pt, 0) > 0
             push!(vertices, pt)
         end

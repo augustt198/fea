@@ -47,8 +47,8 @@ function intriangle(A::T, B::T, C::T, P::T) where T <: Point2
     c_ap = c[1]*ap[2] - c[2]*ap[1];
 
     # TODO don't hardcode Float32
-    t0        = zero(Float32)
-    epsilon   = 1e-5 # eps(Float32)
+    t0        = zero(Float64)
+    epsilon   = 1e-10
     a_bp_zero = isapprox(a_bp, t0, atol=epsilon)
     b_cp_zero = isapprox(b_cp, t0, atol=epsilon)
     c_ap_zero = isapprox(c_ap, t0, atol=epsilon)
@@ -214,14 +214,6 @@ function findregion(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment}
         end
     end
     return 0
-end
-
-# TODO change
-# determines if pt is inside region with boundary dR by counting crossings
-function regiontestinside(V::AbstractVector{T}, dR::AbstractVector{IndexedLineSegment},
-    pt::T) where T <: Point2
-
-    return isodd(regioncrossings(V, dR, pt))
 end
 
 #       + a

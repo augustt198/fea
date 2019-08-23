@@ -45,7 +45,7 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
         _insert_point(tess, i)
     end
 
-    _deactivate_extremal_triangles(tess)
+    #_deactivate_extremal_triangles(tess)
     _check_nbr(tess)
  
     return tess
@@ -451,14 +451,15 @@ function _insert_segment(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where
     l1_ac, l2_ac, pc_ac = lineintersection(p_ta, p_tc, pa, pb)
     l1_ab, l2_ab, pc_ab = lineintersection(p_ta, p_tb, pa, pb)
 
+    ϵ = 1e-6
     if t.a == seg.a || t.a == seg.b
-        @assert 0 <= l1_bc <= 1 && 0 <= l2_bc <= 1
+        @assert 0-ϵ <= l1_bc <= 1+ϵ && 0-ϵ <= l2_bc <= 1+ϵ
         pc = pc_bc
     elseif t.b == seg.a || t.b == seg.b
-        @assert 0 <= l1_ac <= 1 && 0 <= l2_ac <= 1
+        @assert 0-ϵ <= l1_ac <= 1+ϵ && 0-ϵ <= l2_ac <= 1+ϵ
         pc = pc_ac
     elseif t.c == seg.a || t.c == seg.b
-        @assert 0 <= l1_ab <= 1 && 0 <= l2_ab <= 1
+        @assert 0-ϵ <= l1_ab <= 1+ϵ && 0-ϵ <= l2_ab <= 1+ϵ
         pc = pc_ab
     else
         if 0 <= l1_bc <= 1
