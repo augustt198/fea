@@ -51,7 +51,7 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     return tess
 end
 
-function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
+function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64, flip=true) where T <: Point2
     vert = tess.verts[vidx]
     i1, i2, ret1, ret2 = _find_tri_idx_fast(tess, vert)
 
@@ -87,7 +87,7 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
             TriEdge(base_idx+1, TRI_NEIGHBOR_C),
             TriEdge(base_idx+2, TRI_NEIGHBOR_C)
         ]
-        _flip(tess, edges)
+        flip && _flip(tess, edges)
         
         if !_check_nbr(tess)
             #break
@@ -130,7 +130,7 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64) where T <: Point2
         tess.faces[end - 1].na = length(tess.faces) - 2
         tess.faces[end - 0].na = length(tess.faces) - 3
 
-        _flip(tess, edges)
+        flip && _flip(tess, edges)
 
         if !_check_nbr(tess)
             #break
@@ -475,7 +475,7 @@ function _insert_segment(tess::DelaunayTess2D{T}, seg::IndexedLineSegment) where
 
     push!(tess.verts, pc)
     pc_idx = length(tess.verts)
-    _insert_point(tess, pc_idx)
+    _insert_point(tess, pc_idx, false)
 
     seg1 = IndexedLineSegment(seg.a, pc_idx)
     seg2 = IndexedLineSegment(pc_idx, seg.b)
