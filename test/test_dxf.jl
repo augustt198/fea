@@ -100,24 +100,14 @@ function test()
     end
     segments = map(mapfn, segments)
 
-    #Random.seed!(4)
-    for i in 1:0
-        pt = Point2{Float64}(rand(2)) * 2 - 1
-        if FEA.findregion(vertices, segments, pt, 0) > 0
-            push!(vertices, pt)
-        end
-    end
-
     pslg = FEA.PSLG(segments)
 
-    f = (x) -> 0.0
-
-    #tess = conformingDelaunay2D(vertices, pslg)
     mesh = FEA.createFEAMesh(vertices, pslg, bdconds, materials)
-    α = 27.0 * π / 180.0
-    FEA.refine_mesh(mesh.tess, α, 3)
-    FEA.deactivate_external(mesh.tess, mesh.pslg)
+    α = 30.0 * π / 180.0
+    FEA.refineMesh(mesh.tess, α)
+    FEA.deactivate_external(mesh.tess, pslg)
 
+    f = (x) -> 0.0
     #A, F = FEA.assemblePoisson(mesh, f)
 
     #=

@@ -55,6 +55,7 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64, flip=true) where T 
     vert = tess.verts[vidx]
     i1, i2, ret1, ret2 = _find_tri_idx(tess, vert) # _find_tri_idx_fast(tess, vert)
 
+    # TODO FIX
     (ret1 > 0 && i2 < 1) && return
 
     if ret1 == 0 # interior
@@ -91,9 +92,7 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64, flip=true) where T 
         ]
         flip && _flip(tess, edges)
         
-        if false && !_check_nbr(tess)
-            #break
-        end 
+        false && @assert(_check_nbr(tess))
     elseif ret1 > 0 # on edge
         #        + s
         #       /|\
@@ -134,12 +133,8 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64, flip=true) where T 
 
         flip && _flip(tess, edges)
 
-        if false && !_check_nbr(tess)
-            #break
-        end
+        false && @assert(_check_nbr(tess))
     end
-    
-    #_check_degenerate(tess)
 end
 
 # update neighbor indices for surrounding triangles
@@ -201,18 +196,6 @@ function _check_nbr(tess::DelaunayTess2D{T}) where T <: Point2
     return good
 end
 
-function _check_degenerate(tess::DelaunayTess2D{T}) where T <: Point2
-    for t in tess.faces
-        verts = tess.verts[[t.a, t.b, t.c]]
-        if length(unique(verts)) != 3
-            println("$(verts[1]) $(verts[2]) $(verts[3])")
-            println(">> badie: $t")
-            println(">> ", length(unique(tess.verts)), " ", length(tess.verts))
-            @assert false
-        end
-    end
-end
-
 # Lawson flip algorithm
 function _flip(tess::DelaunayTess2D{T}, queue::Vector{TriEdge}) where T <: Point2
     seen::Set{TriEdge} = Set()
@@ -253,15 +236,13 @@ function _flip(tess::DelaunayTess2D{T}, queue::Vector{TriEdge}) where T <: Point
             v = n.c
         end
 
-        if !isquadconvex(tess.verts[u], tess.verts[c1], tess.verts[v], tess.verts[c2])
-            continue # nothing to do
-        end
-
-        pt_a, pt_b, pt_c, pt_v = tess.verts[[t.a, t.b, t.c, v]]
-        if incircumcircle(pt_a, pt_b, pt_c, pt_v)
-            edge1, edge2 = _flip_tri(tess, t, n, it, in, v)
-            push!(queue, edge1)
-            push!(queue, edge2)
+        if isquadconvex(tess.verts[u], tess.verts[c1], tess.verts[v], tess.verts[c2])
+            pt_a, pt_b, pt_c, pt_v = tess.verts[[t.a, t.b, t.c, v]]
+            if incircumcircle(pt_a, pt_b, pt_c, pt_v)
+                edge1, edge2 = _flip_tri(tess, t, n, it, in, v)
+                push!(queue, edge1)
+                push!(queue, edge2)
+            end
         end
     end
 end
@@ -535,7 +516,6 @@ end
 
 # Rivara refinement
 function _refine_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T <: Point2
-    println("starting the refine: $t")
     triangles = [t]
     side, maxdist = _longest_side(tess, t)
     while true
@@ -554,11 +534,9 @@ function _refine_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T <: Po
         ax,ay = a
         bx,by = b
         cx,cy = c
-        println("f($ax,$ay,$bx,$by,$cx,$cy,3t)")
         if dist <= maxdist
             break
         else
-            #side = side2
             maxdist = dist
         end
     end
@@ -568,18 +546,8 @@ function _refine_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T <: Po
 
     push!(tess.verts, midpoint)
     midpoint_idx = length(tess.verts)
-    if midpoint_idx == 188
-        println("ay lmao: $t")
-        for t in tess.faces
-            if t.active && t.a == 182 || t.b == 182 || t.c == 182
-                _a, _b, _c = tess.verts[[t.a, t.b, t.c]]
-                println("a special tri: $_a $_b $_c")
-            end
-        end
-    end
 
     pa, pb, pc = tess.verts[[t.a, t.b, t.c]]
-    println("$pa $pb $pc -> insert $midpoint")
 
     _insert_point(tess, midpoint_idx)
 end
@@ -596,33 +564,33 @@ function minangle(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T <: Point
     α₁ = acos(c₁)
     α₂ = acos(c₂)
     α₃ = π - α₁ - α₂
-    println("Angles: ", (α₁, α₂, α₃))
     return minimum((α₁, α₂, α₃))
 end
 
-function refine_mesh(tess::DelaunayTess2D{T}, ε, ct) where T <: Point2
+function refineMesh(tess::DelaunayTess2D{T}, ε) where T <: Point2
     triangle_mask = Vector{Bool}(undef, length(tess.faces))
     for (i, t) in enumerate(tess.faces)
         triangle_mask[i] = (t.active && minangle(tess, t) < ε)
     end
-    c = 0
-
     while any(triangle_mask)
-        c += 1
-        println("refine pass")
+        c = count(identity, triangle_mask)
+        println("refine pass: $c")
         for (i, b) in enumerate(triangle_mask)
             if b && tess.faces[i].active
                 m = tess.faces[i]
-                #println("Refine: $(tess.faces[i])")
                 _refine_tri(tess, tess.faces[i])
             end
-            #c > 40 && break
         end
-        #c > ct && break
 
         triangle_mask = Vector{Bool}(undef, length(tess.faces))
         for (i, t) in enumerate(tess.faces)
-            triangle_mask[i] = (t.active && minangle(tess, t) > ε)
+            triangle_mask[i] = (t.active && minangle(tess, t) < ε)
+        end
+        c2 = count(identity, triangle_mask)
+        if c2 == c
+            break
+        else
+            c = c2
         end
     end
 end
