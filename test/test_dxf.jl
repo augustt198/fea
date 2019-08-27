@@ -58,9 +58,9 @@ function create_pslg(fname)
 end
 
 function test()
-    #vertices, segments = create_pslg("/Users/August/Documents/cad/6A01/rotor_hub.dxf")
+    vertices, segments = create_pslg("/Users/August/Documents/cad/6A01/rotor_hub.dxf")
     #vertices, segments = create_pslg("/Users/August/Documents/cad/side1_thing.dxf")
-    vertices, segments = create_pslg("/Users/August/Documents/cad/crane/dxf/support_1.dxf")
+    #vertices, segments = create_pslg("/Users/August/Documents/cad/crane/dxf/support_1.dxf")
 
     k = (x) -> 1.0
     materials = FEA.MaterialFunctionsList([k, k])
@@ -69,23 +69,25 @@ function test()
     max_y = maximum(map((x) -> x[2], vertices))
     min_y = minimum(map((x) -> x[2], vertices))
     for v in vertices
-        #dist = sqrt(v' * v)
-        #if dist > 0.4
-        #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, 0.0)
-        #elseif abs(v[1]) > 0.1
+        dist = sqrt(v' * v)
+        if dist > 0.4
+            th = atan(v[2], v[1])
+            val = 4 * sin(5 * th)
+            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, val)
+        elseif abs(v[1]) > 0.1
+            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 0.0)
+        elseif abs(v[2]) > 0.1
+            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 0.0)
+        else
+            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, -1.0)
+        end
+        #if v[2] == max_y && v[1] < 5
         #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 1.0)
-        #elseif abs(v[2]) > 0.1
+        #elseif v[2] == min_y && v[1] > 22.5
         #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, -1.0)
         #else
         #    bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, 0.0)
         #end
-        if v[2] == max_y
-            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, 1.0)
-        elseif v[2] == min_y
-            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_DIRICHLET, -1.0)
-        else
-            bd = FEA.NodeBoundaryCondition(FEA.NODE_BOUNDARY_TYPE_NEUMANN, 0.0)
-        end
         push!(bdconds, bd)
     end
 
@@ -108,14 +110,20 @@ function test()
 
     pslg = FEA.PSLG(segments)
 
-    f = (x) -> 1.0
+    f = (x) -> 0.0
 
     #tess = conformingDelaunay2D(vertices, pslg)
     mesh = FEA.createFEAMesh(vertices, pslg, bdconds, materials)
-    A, F = FEA.assemblePoisson(mesh, f)
+    α = 27.0 * π / 180.0
+    FEA.refine_mesh(mesh.tess, α, 3)
     FEA.deactivate_external(mesh.tess, mesh.pslg)
 
-    U = IterativeSolvers.cg(A, F)
+    #A, F = FEA.assemblePoisson(mesh, f)
+
+    #=
+    println()
+    @time U = IterativeSolvers.cg(A, F)
+    println()
     display(U)
     println("max min ", maximum(U), " ", minimum(U))
 
@@ -132,8 +140,9 @@ function test()
             node_colors[n_idx] = 0
         end
     end
+    =#
 
-    p1 = plottess(mesh.tess, false, node_colors)
+    p1 = plottess(mesh.tess, false)
     scene = vbox(
         p1,
         colorlegend(

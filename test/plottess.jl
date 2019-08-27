@@ -14,7 +14,7 @@ function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false, color
     connectivity   = hcat(connectivity_a, connectivity_b, connectivity_c)
 
     # hide extreme points
-    vertices[1:3, :]  .= vertices[4:4, :]
+    #vertices[1:3, :]  .= vertices[4:4, :]
 
     scene = Scene(scale_plot=false)
 
@@ -35,9 +35,9 @@ function plottess(tess::DelaunayTess2D{T}, draw_circumcircles::Bool=false, color
         colors = sin.(collect(1:length(tess.verts)) / 50.0f0)
     end
 
-    scatter!(scene, vertices, color=:black, markersize=0.0125)
-    mesh!(scene, vertices, connectivity, color=colors, shading=false, colormap=:plasma)
+    scatter!(scene, vertices, color=(:black, 0.1), markersize=0.0125)
+    mesh!(scene, vertices, connectivity, color=colors, shading=false, colormap=:lightrainbow)
     cam = cam2d!(scene, panbutton=Mouse.left)
-    wireframe!(scene[end][1], color=(:black, 0.6), linewidth=2)
+    wireframe!(scene[end][1], color=(:black, 0.1), linewidth=2)
     return scene
 end

@@ -46,14 +46,16 @@ function delaunay2D(V::AbstractVector{T}) where T <: Point2
     end
 
     #_deactivate_extremal_triangles(tess)
-    _check_nbr(tess)
+    #_check_nbr(tess)
  
     return tess
 end
 
 function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64, flip=true) where T <: Point2
     vert = tess.verts[vidx]
-    i1, i2, ret1, ret2 = _find_tri_idx_fast(tess, vert)
+    i1, i2, ret1, ret2 = _find_tri_idx(tess, vert) # _find_tri_idx_fast(tess, vert)
+
+    (ret1 > 0 && i2 < 1) && return
 
     if ret1 == 0 # interior
         i = i1
@@ -89,7 +91,7 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64, flip=true) where T 
         ]
         flip && _flip(tess, edges)
         
-        if !_check_nbr(tess)
+        if false && !_check_nbr(tess)
             #break
         end 
     elseif ret1 > 0 # on edge
@@ -132,10 +134,12 @@ function _insert_point(tess::DelaunayTess2D{T}, vidx::Int64, flip=true) where T 
 
         flip && _flip(tess, edges)
 
-        if !_check_nbr(tess)
+        if false && !_check_nbr(tess)
             #break
         end
     end
+    
+    #_check_degenerate(tess)
 end
 
 # update neighbor indices for surrounding triangles
@@ -195,6 +199,18 @@ function _check_nbr(tess::DelaunayTess2D{T}) where T <: Point2
         good = good && _check_nbr_single(tess, t)
     end
     return good
+end
+
+function _check_degenerate(tess::DelaunayTess2D{T}) where T <: Point2
+    for t in tess.faces
+        verts = tess.verts[[t.a, t.b, t.c]]
+        if length(unique(verts)) != 3
+            println("$(verts[1]) $(verts[2]) $(verts[3])")
+            println(">> badie: $t")
+            println(">> ", length(unique(tess.verts)), " ", length(tess.verts))
+            @assert false
+        end
+    end
 end
 
 # Lawson flip algorithm
@@ -350,19 +366,32 @@ end
 
 function _find_tri_idx_fast(tess::DelaunayTess2D{T}, pt::T) where T <: Point2
     idx = tess.last_tri_idx
+    n = 0
     while true
+        n += 1
+        #println("> [$n]: $idx")
+        #flush(stdout)
+        #n > 100 && error("nop")
         t = tess.faces[idx]
+        #println("thingy: $t / $(tess.last_tri_idx)")
+        if n > 100
+            #println("i slep $n")
+            #sleep(10)
+        end
         if !t.active
             idx = length(tess.faces)
             t = tess.faces[idx]
         end
+        println("now [$idx] $t")
         
         a, b, c = tess.verts[[t.a, t.b, t.c]]
         ret = intriangle(a, b, c, pt)
+        #println("ret $ret / $a $b $c")
         if ret == -TRI_NEIGHBOR_A
             idx = t.na
         elseif ret == -TRI_NEIGHBOR_B
             idx = t.nb
+            #println(">> B: $(t.nb)")
         elseif ret == -TRI_NEIGHBOR_C
             idx = t.nc
         elseif ret == 0
@@ -492,6 +521,108 @@ function deactivate_external(tess::DelaunayTess2D{T}, pslg::PSLG) where T <: Poi
             if r == 0
                 t.active = false
             end
+        end
+    end
+end
+
+function _longest_side(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T <: Point2
+    pa, pb, pc = tess.verts[[t.a, t.b, t.c]]
+    vec_a, vec_b, vec_c = pc - pb, pc - pa, pb - pa
+    dists = sqrt(vec_a' * vec_a), sqrt(vec_b' * vec_b), sqrt(vec_c' * vec_c)
+    idx = argmax(dists)
+    return idx, dists[idx]
+end
+
+# Rivara refinement
+function _refine_tri(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T <: Point2
+    println("starting the refine: $t")
+    triangles = [t]
+    side, maxdist = _longest_side(tess, t)
+    while true
+        if side == TRI_NEIGHBOR_A
+            t.na < 1 && break
+            t = tess.faces[t.na]
+        elseif side == TRI_NEIGHBOR_B
+            t.nb < 1 && break
+            t = tess.faces[t.nb]
+        else
+            t.nc < 1 && break
+            t = tess.faces[t.nc]
+        end
+        side, dist = _longest_side(tess, t)
+        a,b,c = tess.verts[[t.a, t.b, t.c]]
+        ax,ay = a
+        bx,by = b
+        cx,cy = c
+        println("f($ax,$ay,$bx,$by,$cx,$cy,3t)")
+        if dist <= maxdist
+            break
+        else
+            #side = side2
+            maxdist = dist
+        end
+    end
+
+    mids = (tess.verts[[t.b, t.c, t.a]] + tess.verts[[t.c, t.a, t.b]]) / 2
+    midpoint = mids[side]
+
+    push!(tess.verts, midpoint)
+    midpoint_idx = length(tess.verts)
+    if midpoint_idx == 188
+        println("ay lmao: $t")
+        for t in tess.faces
+            if t.active && t.a == 182 || t.b == 182 || t.c == 182
+                _a, _b, _c = tess.verts[[t.a, t.b, t.c]]
+                println("a special tri: $_a $_b $_c")
+            end
+        end
+    end
+
+    pa, pb, pc = tess.verts[[t.a, t.b, t.c]]
+    println("$pa $pb $pc -> insert $midpoint")
+
+    _insert_point(tess, midpoint_idx)
+end
+
+function minangle(tess::DelaunayTess2D{T}, t::DelaunayTriangle) where T <: Point2
+    pa, pb, pc = tess.verts[[t.a, t.b, t.c]]
+    ab, ac = pb - pa, pc - pa
+    ba, bc = pa - pb, pc - pb
+    
+    c₁ = (ab' * ac) / (sqrt(ab' * ab) * sqrt(ac' * ac))
+    c₁ = max(min(c₁, 1), -1)
+    c₂ = (ba' * bc) / (sqrt(ba' * ba) * sqrt(bc' * bc))
+    c₂ = max(min(c₂, 1), -1)
+    α₁ = acos(c₁)
+    α₂ = acos(c₂)
+    α₃ = π - α₁ - α₂
+    println("Angles: ", (α₁, α₂, α₃))
+    return minimum((α₁, α₂, α₃))
+end
+
+function refine_mesh(tess::DelaunayTess2D{T}, ε, ct) where T <: Point2
+    triangle_mask = Vector{Bool}(undef, length(tess.faces))
+    for (i, t) in enumerate(tess.faces)
+        triangle_mask[i] = (t.active && minangle(tess, t) < ε)
+    end
+    c = 0
+
+    while any(triangle_mask)
+        c += 1
+        println("refine pass")
+        for (i, b) in enumerate(triangle_mask)
+            if b && tess.faces[i].active
+                m = tess.faces[i]
+                #println("Refine: $(tess.faces[i])")
+                _refine_tri(tess, tess.faces[i])
+            end
+            #c > 40 && break
+        end
+        #c > ct && break
+
+        triangle_mask = Vector{Bool}(undef, length(tess.faces))
+        for (i, t) in enumerate(tess.faces)
+            triangle_mask[i] = (t.active && minangle(tess, t) > ε)
         end
     end
 end
